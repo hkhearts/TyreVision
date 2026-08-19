@@ -1,0 +1,721 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Tire Vision</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+
+  <style>
+    :root {
+      --primary: #A47251;
+      --secondary: #DD9E59;
+      --bg-light: #F0D8A1;
+      --accent: #DCF0C3;
+      --text-dark: #3e2723;
+      --surface: #ffffff;
+      --safe: #4CAF50;
+      --danger: #F44336;
+      --warning: #FF9800;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    }
+
+    body {
+      background-color: var(--bg-light);
+      color: var(--text-dark);
+      display: flex;
+      flex-direction: column;
+      height: 100vh;
+      overflow: hidden;
+    }
+
+    header {
+      background-color: var(--primary);
+      color: white;
+      padding: 1rem;
+      text-align: center;
+      box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+      z-index: 10;
+    }
+
+    .view {
+      display: none;
+      flex: 1;
+      flex-direction: column;
+      overflow-y: auto;
+      padding: 1.5rem;
+      align-items: center;
+    }
+
+    .view.active {
+      display: flex;
+    }
+
+    .btn {
+      background-color: var(--primary);
+      color: white;
+      border: none;
+      padding: 1rem 2rem;
+      font-size: 1.1rem;
+      border-radius: 50px;
+      cursor: pointer;
+      box-shadow: 0 4px 6px rgba(164, 114, 81, 0.3);
+      transition: transform 0.2s, background-color 0.2s;
+      margin: 0.5rem 0;
+      font-weight: bold;
+      width: 100%;
+      max-width: 300px;
+    }
+
+    .btn:active {
+      transform: scale(0.95);
+    }
+
+    .btn-secondary {
+      background-color: var(--secondary);
+      color: var(--text-dark);
+    }
+
+    .btn-small {
+      padding: 0.5rem 1rem;
+      font-size: 0.9rem;
+    }
+
+    .card {
+      background: var(--surface);
+      border-radius: 16px;
+      padding: 1.5rem;
+      box-shadow: 0 8px 16px rgba(0, 0, 0, 0.05);
+      width: 100%;
+      max-width: 500px;
+      margin-bottom: 1rem;
+      border: 2px solid var(--secondary);
+    }
+
+    #camera-container {
+      position: relative;
+      width: 100%;
+      max-width: 500px;
+      aspect-ratio: 3/4;
+      background: #000;
+      border-radius: 16px;
+      overflow: hidden;
+      margin-bottom: 1rem;
+    }
+
+    video {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+
+    canvas#ar-overlay {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+    }
+
+    .spinner {
+      width: 80px;
+      height: 80px;
+      border: 8px solid var(--secondary);
+      border-top: 8px solid var(--primary);
+      border-radius: 50%;
+      animation: spin 1s linear infinite;
+      margin: 2rem auto;
+    }
+
+    @keyframes spin {
+      0% {
+        transform: rotate(0deg);
+      }
+
+      100% {
+        transform: rotate(360deg);
+      }
+    }
+
+    .status-badge {
+      display: inline-block;
+      padding: 0.5rem 1.5rem;
+      border-radius: 50px;
+      font-size: 1.5rem;
+      font-weight: bold;
+      color: white;
+      margin-bottom: 1rem;
+    }
+
+    .status-safe {
+      background-color: var(--safe);
+    }
+
+    .status-monitor {
+      background-color: var(--warning);
+    }
+
+    .status-dno {
+      background-color: var(--danger);
+    }
+
+    .score-circle {
+      width: 120px;
+      height: 120px;
+      border-radius: 50%;
+      background: var(--accent);
+      color: var(--primary);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      margin: 0 auto 1rem;
+      border: 4px solid var(--primary);
+    }
+
+    .score-circle .num {
+      font-size: 2.5rem;
+      font-weight: bold;
+    }
+
+    .score-circle .label {
+      font-size: 0.8rem;
+      font-weight: bold;
+      text-transform: uppercase;
+    }
+
+    #twin-container {
+      width: 100%;
+      height: 250px;
+      background: var(--text-dark);
+      border-radius: 12px;
+      margin-top: 1rem;
+      margin-bottom: 1.5rem;
+      overflow: hidden;
+      position: relative;
+    }
+
+    #report-content {
+      width: 100%;
+      max-width: 600px;
+      background: var(--surface);
+    }
+
+    /* Features Table */
+    .features-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 1rem;
+      margin-bottom: 1.5rem;
+    }
+
+    .features-table th,
+    .features-table td {
+      padding: 0.6rem 0.4rem;
+      border-bottom: 1px solid var(--secondary);
+      font-size: 0.9rem;
+    }
+
+    .features-table th {
+      color: var(--primary);
+      text-align: left;
+      font-weight: 600;
+      width: 65%;
+    }
+
+    .features-table td {
+      font-weight: bold;
+      text-align: right;
+    }
+
+    /* Steps Indicator */
+    .step-indicator {
+      display: flex;
+      justify-content: center;
+      gap: 0.5rem;
+      margin-bottom: 1rem;
+    }
+
+    .step-dot {
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+      background: var(--secondary);
+    }
+
+    .step-dot.active {
+      background: var(--primary);
+      transform: scale(1.2);
+    }
+  </style>
+</head>
+
+<body>
+
+  <header>
+    <h1 style="font-size: 1.5rem;">Tire Vision</h1>
+    <p style="font-size: 0.9rem; opacity: 0.9;">Comprehensive Fleet Intelligence</p>
+  </header>
+
+  <!-- HOME VIEW -->
+  <div id="home-view" class="view active" style="justify-content: center;">
+    <div style="text-align: center; margin-bottom: 2rem;">
+      <svg width="100" height="100" viewBox="0 0 24 24" fill="none" stroke="var(--primary)" stroke-width="2"
+        stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="12" cy="12" r="10"></circle>
+        <circle cx="12" cy="12" r="4"></circle>
+        <line x1="12" y1="2" x2="12" y2="4"></line>
+        <line x1="12" y1="20" x2="12" y2="22"></line>
+        <line x1="2" y1="12" x2="4" y2="12"></line>
+        <line x1="20" y1="12" x2="22" y2="12"></line>
+      </svg>
+      <h2 style="margin-top: 1rem; color: var(--primary);">Full Tire Inspection</h2>
+      <p style="margin-top: 0.5rem; opacity: 0.8;">Perform a guided 5-step capture for maximum accuracy and digital twin
+        modeling.</p>
+    </div>
+    <button class="btn" onclick="startWizard()">Start Inspection</button>
+  </div>
+
+  <!-- CAMERA WIZARD VIEW -->
+  <div id="camera-view" class="view">
+    <div class="step-indicator" id="step-indicator"></div>
+    <h2 id="step-title" style="margin-bottom: 0.5rem; color: var(--primary); text-align: center;">Align Tire</h2>
+    <p id="step-desc" style="text-align: center; font-size: 0.9rem; margin-bottom: 1rem; font-weight: bold;">
+      Instructions</p>
+
+    <div id="camera-container">
+      <video id="video" autoplay playsinline></video>
+      <canvas id="ar-overlay"></canvas>
+    </div>
+
+    <div id="cam-actions" style="display: flex; flex-direction: column; align-items: center; width: 100%;">
+      <button id="btn-capture" class="btn" onclick="handleCapture()">📸 Capture Photo</button>
+      <button id="btn-video" class="btn btn-secondary" onclick="handleRecordVideo()" style="display: none;">🎥 Record
+        10s Video</button>
+      <button class="btn btn-secondary" onclick="showView('home-view')">Cancel</button>
+    </div>
+  </div>
+
+  <!-- ANALYZING VIEW -->
+  <div id="analyzing-view" class="view" style="justify-content: center;">
+    <h2 style="color: var(--primary); text-align: center;">AI Engine Processing</h2>
+    <div class="spinner"></div>
+    <p style="text-align: center; font-size: 1.1rem; margin-bottom: 0.5rem;" id="analysis-status">Uploading data...</p>
+    <p style="text-align: center; font-size: 0.85rem; opacity: 0.7;">Computing 16 features & generating Digital Twin...
+    </p>
+  </div>
+
+  <!-- RESULTS VIEW -->
+  <div id="results-view" class="view">
+    <div id="report-content" class="card">
+      <h2 style="color: var(--primary); text-align: center; margin-bottom: 0.5rem;">Detailed Inspection Report</h2>
+      <p style="text-align: center; font-size: 0.85rem; margin-bottom: 1.5rem; opacity: 0.8;" id="report-date">Date</p>
+
+      <div style="text-align: center;">
+        <div id="res-status" class="status-badge status-safe">SAFE</div>
+      </div>
+
+      <div class="score-circle">
+        <div class="num" id="res-score">--</div>
+        <div class="label">Reliability</div>
+      </div>
+
+      <h3 style="color: var(--primary); font-size: 1.1rem; margin-top: 1.5rem; text-align: center;">3D Digital Twin</h3>
+      <p style="font-size: 0.8rem; opacity: 0.8; margin-bottom: 0.5rem; text-align: center;">Red markings indicate
+        detected defects (cuts, uneven wear, low tread). Drag to rotate.</p>
+      <div id="twin-container"></div>
+
+      <h3
+        style="color: var(--primary); font-size: 1.1rem; margin-top: 1rem; border-bottom: 2px solid var(--bg-light); padding-bottom: 0.5rem; text-align: center;">
+        Computed Diagnostics</h3>
+
+      <table class="features-table" id="features-table">
+        <!-- JS fills this -->
+      </table>
+
+      <div
+        style="margin-top: 1rem; font-size: 0.9rem; text-align: center; background: var(--bg-light); padding: 1rem; border-radius: 8px;">
+        <strong style="color: var(--primary);">Primary Recommendation:</strong>
+        <p id="res-action" style="margin-top: 0.4rem; font-weight: bold; font-size: 1rem;">--</p>
+      </div>
+    </div>
+
+    <button class="btn" onclick="downloadReport()">📥 Download PDF Report</button>
+    <button class="btn btn-secondary" onclick="showView('home-view')">Done</button>
+  </div>
+
+  <script>
+    // --- Application State ---
+    let stream = null;
+    let arRaf = null;
+    let imagesPayload = { tread: [], sidewall: [], shoulder: [], valve: [], dot: [] };
+    let mediaRecorder = null;
+    let recordedChunks = [];
+
+    // Wizard steps definition
+    const STEPS = [
+      { id: 'tread', title: 'Tread Scan', desc: 'Take 3 photos of the tread from different angles, or record a 10s video.', count: 3 },
+      { id: 'sidewall', title: 'Sidewall Scan', desc: 'Take 2 photos of the sidewall.', count: 2 },
+      { id: 'shoulder', title: 'Shoulder Scan', desc: 'Take 1 photo of the tire shoulder.', count: 1 },
+      { id: 'valve', title: 'Valve Scan', desc: 'Take 1 photo of the valve stem.', count: 1 },
+      { id: 'dot', title: 'DOT OCR Scan', desc: 'Take 1 clear photo of the DOT code.', count: 1 }
+    ];
+    let currentStepIdx = 0;
+    let currentSubStep = 0; // for steps that require multiple photos
+
+    // --- Navigation ---
+    function showView(id) {
+      document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+      document.getElementById(id).classList.add('active');
+    }
+
+    // --- Wizard Logic ---
+    async function startWizard() {
+      // Reset payload and step
+      imagesPayload = { tread: [], sidewall: [], shoulder: [], valve: [], dot: [] };
+      currentStepIdx = 0;
+      currentSubStep = 0;
+      await startCamera();
+      updateWizardUI();
+    }
+
+    function updateWizardUI() {
+      const step = STEPS[currentStepIdx];
+      document.getElementById('step-title').textContent = step.title;
+
+      let progressTxt = step.count > 1 ? ` (${currentSubStep + 1}/${step.count})` : '';
+      document.getElementById('step-desc').textContent = step.desc + progressTxt;
+
+      document.getElementById('btn-capture').textContent = `📸 Capture Photo${progressTxt}`;
+
+      // Show video button only on tread step if subStep is 0
+      const btnVideo = document.getElementById('btn-video');
+      if (step.id === 'tread' && currentSubStep === 0) {
+        btnVideo.style.display = 'block';
+        btnVideo.textContent = '🎥 Record 10s Video';
+      } else {
+        btnVideo.style.display = 'none';
+      }
+
+      // Update dots
+      const ind = document.getElementById('step-indicator');
+      ind.innerHTML = '';
+      STEPS.forEach((s, i) => {
+        const dot = document.createElement('div');
+        dot.className = 'step-dot' + (i === currentStepIdx ? ' active' : '');
+        ind.appendChild(dot);
+      });
+    }
+
+    async function handleCapture() {
+      const step = STEPS[currentStepIdx];
+      const video = document.getElementById('video');
+      const canvas = document.createElement('canvas');
+      canvas.width = video.videoWidth;
+      canvas.height = video.videoHeight;
+      canvas.getContext('2d').drawImage(video, 0, 0);
+
+      imagesPayload[step.id].push(canvas.toDataURL('image/jpeg', 0.8));
+
+      currentSubStep++;
+      if (currentSubStep >= step.count) {
+        // move to next step
+        currentStepIdx++;
+        currentSubStep = 0;
+      }
+
+      if (currentStepIdx >= STEPS.length) {
+        finishWizard();
+      } else {
+        updateWizardUI();
+      }
+    }
+
+    function handleRecordVideo() {
+      const btnVideo = document.getElementById('btn-video');
+      const step = STEPS[currentStepIdx];
+
+      if (mediaRecorder && mediaRecorder.state === 'recording') {
+        return; // already recording
+      }
+
+      btnVideo.textContent = '🔴 Recording...';
+      document.getElementById('btn-capture').style.display = 'none';
+
+      recordedChunks = [];
+      mediaRecorder = new MediaRecorder(stream, { mimeType: 'video/webm' });
+      mediaRecorder.ondataavailable = e => { if (e.data.size > 0) recordedChunks.push(e.data); };
+      mediaRecorder.onstop = () => {
+        const blob = new Blob(recordedChunks, { type: 'video/webm' });
+        // In a real app we'd convert Blob to Base64 to send in JSON payload.
+        // For demo, we just add a string placeholder or a single frame from canvas
+        const videoEl = document.getElementById('video');
+        const canvas = document.createElement('canvas');
+        canvas.width = videoEl.videoWidth;
+        canvas.height = videoEl.videoHeight;
+        canvas.getContext('2d').drawImage(videoEl, 0, 0);
+        imagesPayload[step.id].push(canvas.toDataURL('image/jpeg', 0.8));
+
+        // Skip remaining sub-steps for tread since video covers it
+        currentStepIdx++;
+        currentSubStep = 0;
+        document.getElementById('btn-capture').style.display = 'block';
+        updateWizardUI();
+      };
+
+      mediaRecorder.start();
+
+      // Stop after 10 seconds (or less for demo speed)
+      setTimeout(() => {
+        if (mediaRecorder.state === 'recording') mediaRecorder.stop();
+      }, 5000); // Using 5s for faster demo experience
+    }
+
+    async function finishWizard() {
+      stopCamera();
+      showView('analyzing-view');
+
+      const statusEl = document.getElementById('analysis-status');
+      const stages = ["Extracting pixel features...", "Running OCR...", "Calculating 16 Diagnostics...", "Generating Digital Twin..."];
+      let stageIdx = 0;
+      const stageInterval = setInterval(() => {
+        if (stageIdx < stages.length) statusEl.textContent = stages[stageIdx++];
+      }, 1200);
+
+      try {
+        const response = await fetch('/api/analyze', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ images: imagesPayload, position: 'drive' })
+        });
+
+        clearInterval(stageInterval);
+        if (response.ok) {
+          const result = await response.json();
+          displayResults(result);
+        } else throw new Error('API Error');
+      } catch (err) {
+        clearInterval(stageInterval);
+        console.error(err);
+        alert('Server unreachable. Start server.py locally.');
+        showView('home-view');
+      }
+    }
+
+    // --- Camera & AR ---
+    async function startCamera() {
+      showView('camera-view');
+      const video = document.getElementById('video');
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
+        video.srcObject = stream;
+        drawAROverlay();
+      } catch (err) {
+        alert("Camera access denied.");
+      }
+    }
+
+    function stopCamera() {
+      if (stream) { stream.getTracks().forEach(t => t.stop()); stream = null; }
+      if (arRaf) cancelAnimationFrame(arRaf);
+    }
+
+    function drawAROverlay() {
+      const canvas = document.getElementById('ar-overlay');
+      const video = document.getElementById('video');
+      const ctx = canvas.getContext('2d');
+
+      function render() {
+        if (!stream || !canvas) return;
+        canvas.width = video.offsetWidth;
+        canvas.height = video.offsetHeight;
+        const w = canvas.width, h = canvas.height, t = Date.now() / 1000;
+
+        ctx.clearRect(0, 0, w, h);
+        ctx.lineWidth = 4;
+        ctx.setLineDash([15, 10]);
+
+        const stepId = STEPS[currentStepIdx]?.id;
+
+        if (stepId === 'tread') {
+          // Large Rectangle
+          ctx.strokeStyle = `rgba(221, 158, 89, ${0.6 + 0.4 * Math.sin(t * 3)})`;
+          ctx.strokeRect(w * 0.15, h * 0.2, w * 0.7, h * 0.6);
+        } else if (stepId === 'sidewall') {
+          // Circle
+          ctx.strokeStyle = `rgba(220, 240, 195, ${0.6 + 0.4 * Math.sin(t * 3)})`; // accent color
+          ctx.beginPath();
+          ctx.arc(w / 2, h / 2, w * 0.4, 0, 2 * Math.PI);
+          ctx.stroke();
+        } else if (stepId === 'dot') {
+          // Small flat rectangle for OCR
+          ctx.strokeStyle = `rgba(164, 114, 81, ${0.7 + 0.3 * Math.sin(t * 4)})`; // primary
+          ctx.strokeRect(w * 0.2, h * 0.4, w * 0.6, h * 0.15);
+        } else {
+          // Crosshair & small circle
+          ctx.strokeStyle = 'white';
+          ctx.beginPath(); ctx.arc(w / 2, h / 2, 50, 0, 2 * Math.PI); ctx.stroke();
+          ctx.setLineDash([]);
+          ctx.beginPath();
+          ctx.moveTo(w / 2 - 15, h / 2); ctx.lineTo(w / 2 + 15, h / 2);
+          ctx.moveTo(w / 2, h / 2 - 15); ctx.lineTo(w / 2, h / 2 + 15);
+          ctx.stroke();
+        }
+
+        arRaf = requestAnimationFrame(render);
+      }
+      render();
+    }
+
+    // --- Results & Digital Twin ---
+    function displayResults(data) {
+      showView('results-view');
+      document.getElementById('report-date').textContent = new Date().toLocaleString();
+
+      const statusEl = document.getElementById('res-status');
+      statusEl.textContent = data.risk_flag;
+      statusEl.className = 'status-badge ' +
+        (data.risk_flag === 'SAFE' ? 'status-safe' :
+          data.risk_flag === 'MONITOR' ? 'status-monitor' : 'status-dno');
+
+      document.getElementById('res-score').textContent = data.reliability_score;
+      document.getElementById('res-action').textContent = data.recommendations[0]?.action || 'Continue normally';
+
+      // Build features table
+      const ft = document.getElementById('features-table');
+      ft.innerHTML = '';
+
+      const f = data.features;
+      const rows = [
+        ['Tread Depth', `${f.tread_depth_mm} mm`],
+        ['Tread Wear Variance', f.tread_wear_variance],
+        ['Shoulder Wear Index', f.shoulder_wear_idx],
+        ['Sidewall Crack Density', f.sidewall_crack_density],
+        ['Bulge Detected', f.bulge_detected ? 'YES' : 'NO'],
+        ['Ozone Aging Score', f.ozone_aging_score],
+        ['Cut/Puncture Count', f.cut_puncture_count],
+        ['Tire Age', `${f.tire_age_months} Months`],
+        ['Retread Flag', f.retread_flag ? 'YES' : 'NO'],
+        ['Heat Damage Index', f.heat_damage_idx],
+        ['Rim Corrosion Level', f.rim_corrosion_lvl],
+        ['Valve Integrity Score', f.valve_integrity],
+        ['Tire Position', f.tire_position.toUpperCase()],
+        ['Mileage Since Last', `${f.mileage_since_last.toLocaleString()} km`],
+        ['Lighting Quality', (f.capture_light_quality * 100).toFixed(0) + '%'],
+        ['Ambient Temp', `${f.ambient_temp_c} °C`]
+      ];
+
+      rows.forEach(r => {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `<th>${r[0]}</th><td>${r[1]}</td>`;
+        ft.appendChild(tr);
+      });
+
+      initDigitalTwin(data.risk_flag, data.defects || []);
+    }
+
+    function initDigitalTwin(riskFlag, defects) {
+      const container = document.getElementById('twin-container');
+      container.innerHTML = '';
+
+      const scene = new THREE.Scene();
+      scene.background = new THREE.Color('#3e2723');
+
+      const camera = new THREE.PerspectiveCamera(45, container.clientWidth / container.clientHeight, 0.1, 100);
+      camera.position.set(0, 2.5, 3);
+      camera.lookAt(0, 0, 0);
+
+      const renderer = new THREE.WebGLRenderer({ antialias: true });
+      renderer.setSize(container.clientWidth, container.clientHeight);
+      container.appendChild(renderer.domElement);
+
+      scene.add(new THREE.AmbientLight(0xffffff, 0.7));
+      const light = new THREE.DirectionalLight(0xffffff, 0.8);
+      light.position.set(5, 5, 5);
+      scene.add(light);
+
+      // Base Tire
+      const geometry = new THREE.TorusGeometry(1.0, 0.4, 32, 64);
+      const material = new THREE.MeshStandardMaterial({
+        color: '#222222', roughness: 0.9, metalness: 0.1
+      });
+      const tire = new THREE.Mesh(geometry, material);
+      tire.rotation.x = Math.PI / 2;
+      scene.add(tire);
+
+      // Render Defects
+      defects.forEach(def => {
+        // Create small colored patches/spheres to represent defects
+        let defColor = 0xF44336; // Red for high severity
+        if (def.severity === 'medium') defColor = 0xFF9800; // Orange
+
+        const markerGeo = new THREE.SphereGeometry(0.1, 16, 16);
+        const markerMat = new THREE.MeshBasicMaterial({ color: defColor });
+        const marker = new THREE.Mesh(markerGeo, markerMat);
+
+        // Position on the torus based on angle and radius
+        // Torus parametric eq: x = (R + r cos V) cos U, y = (R + r cos V) sin U, z = r sin V
+        // For simplicity, we just place it along the outer tread rim
+        const U = def.angle;
+        const R = 1.0;
+        const r = 0.4;
+
+        marker.position.x = (R + r) * Math.cos(U);
+        marker.position.y = (R + r) * Math.sin(U);
+        marker.position.z = 0; // top of tread
+
+        tire.add(marker);
+      });
+
+      // Animation Loop
+      function animate() {
+        requestAnimationFrame(animate);
+        tire.rotation.z -= 0.005; // Auto-spin slowly
+        renderer.render(scene, camera);
+      }
+      animate();
+
+      // Drag to rotate
+      let isDragging = false, prevMouse = { x: 0, y: 0 };
+      const startDrag = e => { isDragging = true; prevMouse = getPos(e); };
+      const stopDrag = () => isDragging = false;
+      const doDrag = e => {
+        if (!isDragging) return;
+        const pos = getPos(e);
+        tire.rotation.z -= (pos.x - prevMouse.x) * 0.01;
+        tire.rotation.x -= (pos.y - prevMouse.y) * 0.01;
+        prevMouse = pos;
+      };
+      const getPos = e => e.touches ? { x: e.touches[0].clientX, y: e.touches[0].clientY } : { x: e.offsetX, y: e.offsetY };
+
+      container.addEventListener('mousedown', startDrag);
+      container.addEventListener('mouseup', stopDrag);
+      container.addEventListener('mousemove', doDrag);
+      container.addEventListener('touchstart', startDrag);
+      container.addEventListener('touchend', stopDrag);
+      container.addEventListener('touchmove', doDrag);
+    }
+
+    function downloadReport() {
+      const element = document.getElementById('report-content');
+      const opt = {
+        margin: 0.5,
+        filename: 'Tire_Vision_Inspection.pdf',
+        image: { type: 'jpeg', quality: 0.98 },
+        html2canvas: { scale: 2, useCORS: true },
+        jsPDF: { unit: 'in', format: 'letter', orientation: 'portrait' }
+      };
+      html2pdf().set(opt).from(element).save();
+    }
+  </script>
+</body>
+
+</html>

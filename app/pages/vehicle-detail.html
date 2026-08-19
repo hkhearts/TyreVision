@@ -1,0 +1,154 @@
+<!-- Vehicle Detail Page -->
+<main>
+<link rel="stylesheet" href="/css/main.css"/>
+<style>
+.detail-grid { display: grid; grid-template-columns: 320px 1fr; gap: var(--space-lg); align-items: start; }
+@media(max-width:900px){.detail-grid{grid-template-columns:1fr;}}
+.tire-position-map { display: flex; flex-direction: column; align-items: center; gap: 10px; padding: var(--space-lg); }
+.tire-pos-row { display: flex; align-items: center; gap: 32px; }
+.tire-pos-chip {
+  width: 36px; height: 56px; border-radius: 6px; cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 0.55rem; font-weight: 700; color: #000;
+  transition: transform 0.15s var(--ease-bounce), box-shadow 0.15s;
+  position: relative;
+}
+.tire-pos-chip:hover { transform: scale(1.15); }
+.tire-pos-chip::after { content: attr(data-label); position: absolute; bottom: -16px; font-size: .55rem; white-space: nowrap; color: var(--text-muted); }
+.vehicle-body-shape { width: 80px; background: var(--bg-surface); border: 2px solid var(--border); border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 2rem; }
+</style>
+
+<div id="vehicle-detail-root">
+  <div style="display:flex;align-items:center;gap:var(--space-md);margin-bottom:var(--space-xl)">
+    <button class="btn btn-ghost btn-sm" onclick="navigate('fleet')">← Fleet</button>
+    <h1 id="vehicle-title" style="flex:1">Vehicle Detail</h1>
+    <button class="btn btn-primary" onclick="navigate('inspect')">🔬 Inspect This Vehicle</button>
+  </div>
+
+  <div class="detail-grid" id="detail-grid">
+    <div class="skeleton" style="height:500px;border-radius:18px"></div>
+    <div style="display:flex;flex-direction:column;gap:var(--space-md)">
+      <div class="skeleton" style="height:120px;border-radius:12px"></div>
+      <div class="skeleton" style="height:240px;border-radius:12px"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+(async function init() {
+  let data=null;
+  try{const r=await fetch('http://localhost:5000/api/fleet',{signal:AbortSignal.timeout(3000)});if(r.ok)data=await r.json();}catch{}
+  if(!data){try{data=await(await fetch('/data/fleet-seed.json')).json();}catch{}}
+  const vehicles = data?.vehicles||[];
+  const vehicle  = vehicles[0]; // Default to first vehicle for demo
+
+  if (!vehicle) {
+    document.getElementById('vehicle-detail-root').innerHTML = `<div style="text-align:center;padding:4rem;color:var(--text-muted)"><p>No vehicle data available</p><button class="btn btn-primary" onclick="navigate('fleet')">← Fleet Manager</button></div>`;
+    return;
+  }
+
+  document.getElementById('vehicle-title').textContent = `${vehicle.make} ${vehicle.model} — ${vehicle.regNo}`;
+
+  function posKey(p){const l=(p||'').toLowerCase();return l.includes('steer')||l.includes('front')?'steer':l.includes('trailer')?'trailer':'drive';}
+  function dotAge(d){const m=(d||'').match(/(\d{2})(\d{2})/);if(!m)return 36;const yr=parseInt(m[2])<=30?2000+parseInt(m[2]):1900+parseInt(m[2]);const mfg=new Date(yr,0,1);mfg.setDate(mfg.getDate()+(parseInt(m[1])-1)*7);return(Date.now()-mfg.getTime())/(1e3*60*60*24*30.44);}
+  function tireRisk(t){const BL={steer:150000,drive:250000,trailer:180000};const pct=(t.mileageOnTire||0)/BL[posKey(t.position)];const age=dotAge(t.dotCode);if(pct>=.95||age>108)return'DO-NOT-OPERATE';if(pct>=.82||age>96)return'CRITICAL';if(pct>=.65||age>72)return'MONITOR';return'SAFE';}
+  const riskCss=r=>({'SAFE':'safe','MONITOR':'monitor','CRITICAL':'critical','DO-NOT-OPERATE':'dno'}[r]||'unknown');
+  const riskColor=r=>({'SAFE':'#00e676','MONITOR':'#ffcc00','CRITICAL':'#ff6b00','DO-NOT-OPERATE':'#ff1744'}[r]||'#8b93b5');
+
+  const tires   = vehicle.tires||[];
+  const telem   = vehicle.telematics||{};
+  const worstRisk = tires.reduce((w,t)=>{const r=tireRisk(t);const o={'SAFE':0,'MONITOR':1,'CRITICAL':2,'DO-NOT-OPERATE':3};return o[r]>o[w]?r:w;},'SAFE');
+
+  // Build left + right tire columns
+  const half = Math.ceil(tires.length/2);
+  const leftT  = tires.slice(0, half);
+  const rightT = tires.slice(half);
+  const maxRows = Math.max(leftT.length, rightT.length);
+
+  const tireRows = Array.from({length:maxRows}).map((_,i)=>{
+    const lt = leftT[i], rt = rightT[i];
+    const chipHtml = (t) => {
+      if (!t) return `<div style="width:36px;height:56px"></div>`;
+      const r = tireRisk(t), c = riskColor(r);
+      return `<div class="tire-pos-chip" data-label="${t.label?.slice(0,6)||''}" style="background:${c};box-shadow:0 0 8px ${c}66" title="${t.label}: ${r} — ${(t.mileageOnTire||0).toLocaleString()} km" onclick="showTireDetail('${t.id}')"></div>`;
+    };
+    return `<div class="tire-pos-row">${chipHtml(lt)}<div class="vehicle-body-shape" style="min-height:60px">🚛</div>${chipHtml(rt)}</div>`;
+  }).join('');
+
+  document.getElementById('detail-grid').innerHTML = `
+    <!-- Left: Tire Map + Vehicle Info -->
+    <div style="display:flex;flex-direction:column;gap:var(--space-md)">
+      <div class="card">
+        <div class="card-title" style="margin-bottom:var(--space-md)">Vehicle Info</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;font-size:.82rem">
+          <div><div class="label">Registration</div><div style="font-weight:600;margin-top:2px">${vehicle.regNo}</div></div>
+          <div><div class="label">Year</div><div style="font-weight:600;margin-top:2px">${vehicle.year}</div></div>
+          <div><div class="label">Type</div><div style="font-weight:600;margin-top:2px;text-transform:capitalize">${vehicle.type}</div></div>
+          <div><div class="label">Mileage</div><div style="font-weight:600;margin-top:2px">${(vehicle.mileageKm||0).toLocaleString()} km</div></div>
+          <div><div class="label">Driver</div><div style="font-weight:600;margin-top:2px">${vehicle.driverName||'—'}</div></div>
+          <div><div class="label">Route</div><div style="font-weight:600;margin-top:2px">${vehicle.currentRoute||'—'}</div></div>
+        </div>
+        <div style="margin-top:var(--space-md);padding:10px;background:var(--${riskCss(worstRisk)}-bg||var(--bg-surface));border-radius:var(--radius-md);border:1px solid ${riskColor(worstRisk)}44">
+          <span class="risk-badge ${riskCss(worstRisk)}">${worstRisk==='DO-NOT-OPERATE'?'DNO':worstRisk}</span>
+          <span style="font-size:.8rem;margin-left:8px">Overall fleet status</span>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-title" style="margin-bottom:var(--space-md)">Tire Health Map</div>
+        <div class="tire-position-map" style="padding:0">${tireRows}</div>
+        <div style="margin-top:var(--space-md);font-size:.72rem;display:flex;gap:10px;flex-wrap:wrap">
+          <span>🟢 Safe</span><span>🟡 Monitor</span><span>🟠 Critical</span><span>🔴 DNO</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Right: Tire Table + Telematics -->
+    <div style="display:flex;flex-direction:column;gap:var(--space-md)">
+      <!-- Telematics -->
+      <div class="card">
+        <div class="card-title" style="margin-bottom:var(--space-md)">📡 Telematics</div>
+        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:var(--space-md)">
+          ${[
+            {icon:'🏎️',label:'Avg Speed',value:`${telem.avgSpeed||0} km/h`},
+            {icon:'⛽',label:'Fuel Eff.',value:`${telem.fuelEfficiency||0} km/L`},
+            {icon:'🌡️',label:'Engine Temp',value:`${telem.engineTempC||0}°C`},
+            {icon:'🛑',label:'Hard Brakes',value:telem.harshBrakeEvents||0},
+            {icon:'⚡',label:'Hard Accels',value:telem.harshAccelEvents||0},
+            {icon:'⏸️',label:'Idle Time',value:`${telem.idleTimePct||0}%`},
+          ].map(s=>`<div style="text-align:center;background:var(--bg-surface);border-radius:8px;padding:10px"><div style="font-size:1.3rem">${s.icon}</div><div style="font-weight:700;font-size:1rem;margin:4px 0">${s.value}</div><div class="label">${s.label}</div></div>`).join('')}
+        </div>
+      </div>
+
+      <!-- Tire Table -->
+      <div class="card">
+        <div class="card-title" style="margin-bottom:var(--space-md)">Tire Details (${tires.length} tires)</div>
+        <table class="data-table">
+          <thead><tr>
+            <th>Position</th><th>Brand/Size</th><th>Mileage</th><th>DOT</th><th>Status</th><th>Action</th>
+          </tr></thead>
+          <tbody>
+            ${tires.map(t=>{
+              const r=tireRisk(t), c=riskCss(r);
+              const BL={steer:{ls:150000,wr:0.093,nd:19},drive:{ls:250000,wr:0.076,nd:24},trailer:{ls:180000,wr:0.061,nd:16}};
+              const pk=posKey(t.position),bl=BL[pk];
+              const tread=Math.max(0,bl.nd-(t.mileageOnTire||0)/1000*bl.wr).toFixed(1);
+              return `<tr onclick="navigate('inspect')">
+                <td><span style="font-weight:600">${t.label}</span><div style="font-size:.7rem;color:var(--text-muted)">${t.position}</div></td>
+                <td><span style="font-size:.82rem">${t.brand||'—'}</span><div style="font-size:.7rem;color:var(--text-muted)">${t.size||''}</div></td>
+                <td style="font-family:var(--font-mono)">${(t.mileageOnTire||0).toLocaleString()}</td>
+                <td style="font-family:var(--font-mono);font-size:.8rem">${t.dotCode||'—'}</td>
+                <td><span class="risk-badge ${c}" style="font-size:.6rem">${r==='DO-NOT-OPERATE'?'DNO':r}</span><div style="font-size:.7rem;color:var(--text-muted);margin-top:3px">~${tread}mm tread</div></td>
+                <td><button class="btn btn-primary btn-sm" onclick="event.stopPropagation();navigate('inspect')" style="font-size:.7rem">🔬</button></td>
+              </tr>`;
+            }).join('')}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  `;
+})();
+
+function showTireDetail(tireId) { console.log('Tire:', tireId); }
+function navigate(p){if(window.navigate)window.navigate(p);else window.location.hash=p;}
+</script>
+</main>

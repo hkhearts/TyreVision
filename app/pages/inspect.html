@@ -1,0 +1,750 @@
+<!-- Inspection Page — 5-Step Guided Wizard -->
+<main>
+<link rel="stylesheet" href="/css/main.css"/>
+
+<style>
+.inspect-layout {
+  display: grid;
+  grid-template-columns: 1fr 380px;
+  gap: var(--space-xl);
+  align-items: start;
+}
+@media (max-width: 900px) {
+  .inspect-layout { grid-template-columns: 1fr; }
+}
+.step-panel {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-xl);
+  padding: var(--space-xl);
+}
+.capture-thumb {
+  width: 80px; height: 60px;
+  object-fit: cover;
+  border-radius: var(--radius-sm);
+  border: 2px solid var(--border);
+}
+.capture-thumb.captured { border-color: var(--safe); }
+.zone-btn {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 16px;
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  transition: all 0.15s;
+  width: 100%;
+  color: var(--text-primary);
+  font-family: inherit;
+  font-size: 0.88rem;
+}
+.zone-btn:hover { background: var(--bg-card-hover); border-color: var(--cyan-border); }
+.zone-btn.done  { border-color: var(--safe); background: var(--safe-bg); }
+.zone-btn.active{ border-color: var(--cyan); background: var(--cyan-glow); }
+.progress-ring-wrap { display: flex; align-items: center; justify-content: center; }
+.time-bar { height: 4px; background: var(--bg-surface); border-radius: 2px; overflow:hidden; margin-top: 8px; }
+.time-fill { height: 100%; background: var(--grad-cyan); border-radius: 2px; transition: width 1s linear; }
+</style>
+
+<div style="max-width: 1100px; margin: 0 auto">
+  <!-- Header -->
+  <div style="margin-bottom: var(--space-xl)">
+    <h1 style="margin-bottom:4px">🔬 Tire Inspection</h1>
+    <p>Complete all 5 zones within 60 seconds for full analysis.</p>
+  </div>
+
+  <!-- Step Indicator -->
+  <div class="step-indicator" id="step-indicator" style="margin-bottom: var(--space-xl); max-width: 600px">
+    <!-- Filled by JS -->
+  </div>
+
+  <!-- Timer bar -->
+  <div class="time-bar" style="margin-bottom: var(--space-lg)">
+    <div class="time-fill" id="time-bar" style="width:100%"></div>
+  </div>
+
+  <div class="inspect-layout">
+    <!-- Left: AR Camera + Controls -->
+    <div>
+      <!-- Step 1: Vehicle Setup -->
+      <div class="step-panel" id="step-1">
+        <h3 style="margin-bottom: var(--space-lg)">Step 1 — Vehicle & Tire Setup</h3>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:var(--space-md)">
+          <div class="form-group">
+            <label class="form-label">Vehicle</label>
+            <select class="form-select" id="sel-vehicle">
+              <option value="">Loading vehicles...</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Tire Position</label>
+            <select class="form-select" id="sel-position">
+              <option value="steer-fl">Front Left (Steer)</option>
+              <option value="steer-fr">Front Right (Steer)</option>
+              <option value="drive-rll">Rear Left Outer (Drive)</option>
+              <option value="drive-rli">Rear Left Inner (Drive)</option>
+              <option value="drive-rrl">Rear Right Outer (Drive)</option>
+              <option value="drive-rri">Rear Right Inner (Drive)</option>
+              <option value="trailer-l">Trailer Left</option>
+              <option value="trailer-r">Trailer Right</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Vehicle Mileage (km)</label>
+            <input type="number" class="form-input" id="inp-mileage" placeholder="e.g. 52000" value="52000"/>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Ambient Temp (°C)</label>
+            <input type="number" class="form-input" id="inp-temp" placeholder="28" value="28"/>
+          </div>
+          <div class="form-group" style="grid-column:1/-1">
+            <label class="form-label">DOT Code (optional)</label>
+            <input type="text" class="form-input" id="inp-dot" placeholder="e.g. 3024" maxlength="10"/>
+          </div>
+        </div>
+        <button class="btn btn-primary" style="margin-top:var(--space-lg);width:100%" onclick="nextStep()" id="step1-next">
+          Continue to Capture →
+        </button>
+      </div>
+
+      <!-- Step 2–4: AR Camera Capture -->
+      <div class="step-panel" id="step-capture" style="display:none">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:var(--space-md)">
+          <h3 id="capture-title">Capture Tread</h3>
+          <div id="ar-timer" class="ar-timer" style="position:relative;top:auto;right:auto">60s</div>
+        </div>
+        <p id="capture-instruction" style="margin-bottom:var(--space-md);font-size:0.88rem">
+          Position the tire tread face towards the camera. Hold steady for auto-capture.
+        </p>
+
+        <!-- AR Camera -->
+        <div class="ar-container" id="ar-container" style="max-height:340px">
+          <video id="ar-video" class="ar-video" autoplay playsinline muted style="width:100%;height:100%;object-fit:cover"></video>
+          <canvas id="ar-canvas" class="ar-canvas"></canvas>
+          <div style="position:absolute;top:12px;right:12px;z-index:10" id="ar-timer-display">
+            <div class="ar-timer" style="position:relative;top:auto;right:auto" id="ar-clock">60</div>
+          </div>
+          <div id="ar-quality-display" style="position:absolute;bottom:70px;left:12px;right:12px;z-index:10">
+            <div style="display:flex;align-items:center;gap:8px;font-size:0.78rem;color:#fff">
+              <span>Quality:</span>
+              <div style="flex:1;height:5px;background:rgba(255,255,255,0.2);border-radius:3px">
+                <div id="quality-bar-fill" style="height:100%;border-radius:3px;background:#00e676;transition:width 0.3s;width:50%"></div>
+              </div>
+              <span id="quality-pct">50%</span>
+            </div>
+          </div>
+        </div>
+
+        <div style="display:flex;gap:10px;margin-top:var(--space-md)">
+          <button class="btn btn-ghost btn-sm" onclick="retakeCapture()" style="flex:0 0 auto">↺ Retake</button>
+          <button class="btn btn-primary" onclick="manualCapture()" style="flex:1">
+            📸 Capture
+          </button>
+          <button class="btn btn-ghost btn-sm" onclick="skipZone()" style="flex:0 0 auto">Skip →</button>
+        </div>
+      </div>
+
+      <!-- Step 5: Review -->
+      <div class="step-panel" id="step-review" style="display:none">
+        <h3 style="margin-bottom:var(--space-lg)">Step 5 — Review & Analyze</h3>
+        <div id="capture-previews" style="display:flex;flex-wrap:wrap;gap:10px;margin-bottom:var(--space-lg)"></div>
+        <div id="inspection-summary" style="background:var(--bg-surface);border-radius:var(--radius-md);padding:var(--space-md);margin-bottom:var(--space-lg);font-size:0.85rem"></div>
+        <button class="btn btn-primary" style="width:100%;font-size:1rem;padding:16px" id="analyze-btn" onclick="runAnalysis()">
+          🧠 Analyze Tire — Run AI Engine
+        </button>
+        <button class="btn btn-ghost" style="width:100%;margin-top:8px" onclick="navigate('inspect')">← Start Over</button>
+      </div>
+    </div>
+
+    <!-- Right: Capture Checklist + Info -->
+    <div>
+      <div class="card" style="margin-bottom:var(--space-md)">
+        <div class="card-title" style="margin-bottom:var(--space-md)">📋 Capture Checklist</div>
+        <div style="display:flex;flex-direction:column;gap:8px" id="zone-checklist">
+          <!-- Zone buttons filled by JS -->
+        </div>
+      </div>
+
+      <div class="card" style="margin-bottom:var(--space-md)">
+        <div class="card-title" style="margin-bottom:var(--space-md)">⚡ 16-Feature Vector</div>
+        <div id="feature-preview" style="font-size:0.75rem;font-family:var(--font-mono);color:var(--text-muted);line-height:1.8">
+          <div>F1 tread_depth_mm ........ —</div>
+          <div>F2 wear_variance ......... —</div>
+          <div>F3 shoulder_wear_idx ..... —</div>
+          <div>F4 crack_density ......... —</div>
+          <div>F5 bulge_detected ........ —</div>
+          <div>F8 tire_age_months ....... —</div>
+          <div>F14 mileage_since_last ... —</div>
+          <div style="color:var(--text-muted)">[ awaiting capture... ]</div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title" style="margin-bottom:var(--space-sm)">⏱️ Time Target</div>
+        <div style="font-size:2.5rem;font-weight:800;font-family:var(--font-mono);color:var(--cyan)" id="elapsed-display">0:00</div>
+        <div style="font-size:0.75rem;color:var(--text-muted)">Target: ≤ 60 seconds per tire</div>
+        <div style="margin-top:var(--space-sm);height:4px;background:var(--bg-surface);border-radius:2px">
+          <div id="elapsed-bar" style="height:100%;background:var(--grad-cyan);border-radius:2px;width:0%;transition:width 0.5s"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ─── Inspection State ─────────────────────────────────────────
+const ZONES = [
+  { id: 'tread',    label: '🔲 Tread Face',          instruction: 'Lay tire flat or point tread towards camera. Hold steady.' },
+  { id: 'sidewall', label: '⭕ Sidewall (Inner+Outer)', instruction: 'Capture sidewall surface. Look for cracks, bulges.' },
+  { id: 'shoulder', label: '📐 Shoulder Area',         instruction: 'Capture the tread-to-sidewall curve zone.' },
+  { id: 'dot',      label: '🔡 DOT Code',              instruction: 'Get close. The 4-digit date code must be readable.' },
+  { id: 'valve',    label: '🔵 Valve & Rim',           instruction: 'Center the valve stem in view. Check rim edges.' },
+];
+
+const state = {
+  step:        1,
+  currentZone: 0,
+  captures:    {},
+  startTime:   null,
+  vehicle:     null,
+  position:    'drive-rll',
+  mileage:     52000,
+  dotCode:     '',
+  ambientTemp: 28,
+  stream:      null,
+  arOverlay:   null,
+  timerInterval: null,
+  elapsed:     0,
+};
+
+// ─── Initialize ───────────────────────────────────────────────
+(async function init() {
+  renderStepIndicator();
+  renderZoneChecklist();
+  await loadVehicles();
+})();
+
+async function loadVehicles() {
+  let vehicles = [];
+  try {
+    const r = await fetch('http://localhost:5000/api/fleet', {signal: AbortSignal.timeout(2000)});
+    if (r.ok) { const d = await r.json(); vehicles = d.vehicles || []; }
+  } catch {}
+  if (!vehicles.length) {
+    try { const r = await fetch('/data/fleet-seed.json'); const d = await r.json(); vehicles = d.vehicles || []; } catch {}
+  }
+  const sel = document.getElementById('sel-vehicle');
+  sel.innerHTML = vehicles.map(v =>
+    `<option value="${v.id}">${v.make} ${v.model} — ${v.regNo}</option>`
+  ).join('');
+  state.vehicle = vehicles[0];
+}
+
+// ─── Step Indicator ───────────────────────────────────────────
+function renderStepIndicator() {
+  const steps = ['Setup', 'Tread', 'Sidewall', 'Shoulder', 'DOT/Valve', 'Review'];
+  const si = document.getElementById('step-indicator');
+  si.innerHTML = steps.map((s, i) => {
+    const n = i + 1;
+    const done   = n < state.step;
+    const active = n === state.step;
+    const conn   = i < steps.length - 1;
+    return `
+      <div class="step-node">
+        <div class="step-circle ${done?'done':active?'active':''}">${done?'✓':n}</div>
+        <div class="step-label ${active?'active':''}">${s}</div>
+      </div>
+      ${conn ? `<div class="step-connector ${done?'done':''}"></div>` : ''}
+    `;
+  }).join('');
+}
+
+// ─── Zone Checklist ───────────────────────────────────────────
+function renderZoneChecklist() {
+  document.getElementById('zone-checklist').innerHTML = ZONES.map((z, i) => {
+    const done   = !!state.captures[z.id];
+    const active = i === state.currentZone && state.step >= 2 && state.step < 5;
+    return `
+      <button class="zone-btn ${done?'done':active?'active':''}" onclick="jumpToZone(${i})">
+        <span>${done ? '✅' : active ? '🔴' : '⬜'}</span>
+        <span style="flex:1;text-align:left">${z.label}</span>
+        ${done ? '<span style="color:var(--safe);font-size:0.75rem">Captured</span>' : ''}
+      </button>
+    `;
+  }).join('');
+}
+
+// ─── Step Navigation ──────────────────────────────────────────
+async function nextStep() {
+  state.mileage     = parseInt(document.getElementById('inp-mileage').value) || 52000;
+  state.dotCode     = document.getElementById('inp-dot').value || '';
+  state.ambientTemp = parseInt(document.getElementById('inp-temp').value) || 28;
+  state.position    = document.getElementById('sel-position').value;
+  state.step = 2;
+  state.startTime = Date.now();
+  startTimer();
+  renderStepIndicator();
+  showCaptureStep();
+}
+
+function showCaptureStep() {
+  document.getElementById('step-1').style.display      = 'none';
+  document.getElementById('step-capture').style.display = '';
+  document.getElementById('step-review').style.display  = 'none';
+  showZone(state.currentZone);
+}
+
+function showZone(idx) {
+  if (idx >= ZONES.length) {
+    showReview();
+    return;
+  }
+  state.currentZone = idx;
+  const zone = ZONES[idx];
+  document.getElementById('capture-title').textContent = `Capture — ${zone.label}`;
+  document.getElementById('capture-instruction').textContent = zone.instruction;
+  renderZoneChecklist();
+  renderStepIndicator();
+  startCamera(zone.id);
+}
+
+async function startCamera(zoneId) {
+  // Stop previous stream
+  if (state.stream) { state.stream.getTracks().forEach(t => t.stop()); state.stream = null; }
+
+  const video  = document.getElementById('ar-video');
+  const canvas = document.getElementById('ar-canvas');
+
+  try {
+    state.stream = await navigator.mediaDevices.getUserMedia({
+      video: { facingMode: { ideal: 'environment' }, width: { ideal: 1280 }, height: { ideal: 720 } }
+    });
+    video.srcObject = state.stream;
+    await video.play();
+  } catch {
+    // Camera unavailable — show placeholder
+    document.getElementById('ar-container').innerHTML = `
+      <div style="height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;background:var(--bg-surface);border-radius:var(--radius-lg);color:var(--text-muted);gap:1rem;padding:2rem">
+        <div style="font-size:3rem">📷</div>
+        <p>Camera not available</p>
+        <p style="font-size:0.8rem">Using simulated capture for demo</p>
+        <button class="btn btn-primary" onclick="simulateCapture('${zoneId}')">Simulate Capture →</button>
+      </div>
+    `;
+    return;
+  }
+
+  // Resize canvas
+  canvas.width  = video.videoWidth  || 640;
+  canvas.height = video.videoHeight || 480;
+
+  // Start AR overlay drawing
+  state.arOverlay = { zone: zoneId, quality: 0 };
+  drawAROverlay(zoneId);
+  assessQuality();
+}
+
+let _arRaf = null;
+let _qualityInterval = null;
+
+function drawAROverlay(zone) {
+  if (_arRaf) cancelAnimationFrame(_arRaf);
+  const canvas = document.getElementById('ar-canvas');
+  const video  = document.getElementById('ar-video');
+  if (!canvas || !video) return;
+
+  const ctx = canvas.getContext('2d');
+  const W = canvas.width, H = canvas.height;
+
+  function frame() {
+    if (!document.getElementById('ar-canvas')) return;
+    canvas.width  = canvas.parentElement?.offsetWidth  || W;
+    canvas.height = canvas.parentElement?.offsetHeight || H;
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    const t = Date.now() / 1000;
+    const w = canvas.width, h = canvas.height;
+    const q = state.arOverlay?.quality || 0;
+
+    drawZoneGuide(ctx, zone, w, h, t);
+    drawScanLine(ctx, w, h, t);
+    drawCornerBrackets(ctx, w, h, t, q);
+    drawQualityHUD(ctx, w, h, q);
+
+    _arRaf = requestAnimationFrame(frame);
+  }
+  frame();
+}
+
+function drawZoneGuide(ctx, zone, W, H, t) {
+  const pulse = 0.5 + 0.5 * Math.sin(t * 2);
+  ctx.save();
+  if (zone === 'tread') {
+    const mx=W*.1, my=H*.1, mw=W*.8, mh=H*.8;
+    ctx.strokeStyle = `rgba(0,212,255,${0.6+pulse*0.3})`;
+    ctx.lineWidth = 2; ctx.setLineDash([8,4]);
+    ctx.strokeRect(mx, my, mw, mh);
+    ctx.setLineDash([]);
+    [.2,.4,.6,.8].forEach(p => {
+      ctx.beginPath(); ctx.strokeStyle='rgba(0,212,255,.15)'; ctx.lineWidth=1;
+      ctx.moveTo(mx, my+mh*p); ctx.lineTo(mx+mw, my+mh*p); ctx.stroke();
+    });
+    drawLabel(ctx, W/2, my-10, '● TREAD FACE — HOLD STEADY', 'rgba(0,212,255,.95)');
+  } else if (zone === 'sidewall') {
+    const cx=W/2, cy=H/2, rx=W*.38, ry=H*.38;
+    ctx.strokeStyle = `rgba(255,204,0,${0.6+pulse*0.3})`;
+    ctx.lineWidth = 2.5; ctx.setLineDash([10,5]);
+    ctx.beginPath(); ctx.ellipse(cx, cy, rx, ry, 0, 0, Math.PI*2); ctx.stroke();
+    ctx.setLineDash([]);
+    drawLabel(ctx, W/2, cy-ry-14, '● SIDEWALL — CHECK CRACKS & BULGES', 'rgba(255,204,0,.9)');
+  } else if (zone === 'shoulder') {
+    const mx=W*.05, my=H*.15, mw=W*.9, mh=H*.7;
+    ctx.strokeStyle = `rgba(255,107,0,${0.6+pulse*0.3})`;
+    ctx.lineWidth=2; ctx.setLineDash([6,4]);
+    ctx.beginPath(); ctx.moveTo(mx+mw*.1,my); ctx.lineTo(mx+mw*.9,my);
+    ctx.lineTo(mx+mw,my+mh); ctx.lineTo(mx,my+mh); ctx.closePath(); ctx.stroke();
+    ctx.setLineDash([]);
+    drawLabel(ctx, W/2, my-12, '● SHOULDER — TREAD-TO-SIDEWALL ZONE', 'rgba(255,107,0,.9)');
+  } else if (zone === 'dot') {
+    const bx=W*.1, by=H*.25, bw=W*.8, bh=H*.4;
+    ctx.strokeStyle = `rgba(0,230,118,${0.7+pulse*0.2})`;
+    ctx.lineWidth=2.5; ctx.strokeRect(bx,by,bw,bh);
+    ctx.fillStyle='rgba(0,230,118,.05)'; ctx.fillRect(bx,by,bw,bh);
+    const cw=bw/12;
+    for(let i=0;i<12;i++){ctx.strokeStyle='rgba(0,230,118,.2)';ctx.lineWidth=1;ctx.strokeRect(bx+i*cw+1,by+bh*.2,cw-2,bh*.6);}
+    drawLabel(ctx, W/2, by-12, '● DOT CODE — 4-DIGIT e.g. 3024', 'rgba(0,230,118,.9)');
+  } else if (zone === 'valve') {
+    const cx=W/2, cy=H/2, r=Math.min(W,H)*.2;
+    ctx.strokeStyle = `rgba(0,212,255,${0.6+pulse*0.3})`;
+    ctx.lineWidth=2; ctx.beginPath(); ctx.arc(cx,cy,r,0,Math.PI*2); ctx.stroke();
+    ctx.strokeStyle='rgba(0,212,255,.3)'; ctx.beginPath(); ctx.arc(cx,cy,r*.5,0,Math.PI*2); ctx.stroke();
+    [[cx,cy-r*1.2,cx,cy-r*.6],[cx,cy+r*.6,cx,cy+r*1.2],[cx-r*1.2,cy,cx-r*.6,cy],[cx+r*.6,cy,cx+r*1.2,cy]].forEach(([x1,y1,x2,y2])=>{
+      ctx.strokeStyle='rgba(0,212,255,.4)'; ctx.lineWidth=1;
+      ctx.beginPath(); ctx.moveTo(x1,y1); ctx.lineTo(x2,y2); ctx.stroke();
+    });
+    drawLabel(ctx, W/2, cy-r-18, '● VALVE STEM — CENTER IN TARGET', 'rgba(0,212,255,.9)');
+  }
+  ctx.restore();
+}
+
+function drawScanLine(ctx, W, H, t) {
+  const y = ((t * 0.4) % 1) * H;
+  const g = ctx.createLinearGradient(0, y-12, 0, y+12);
+  g.addColorStop(0,'transparent'); g.addColorStop(.5,'rgba(0,212,255,.25)'); g.addColorStop(1,'transparent');
+  ctx.fillStyle=g; ctx.fillRect(0,y-12,W,24);
+}
+
+function drawCornerBrackets(ctx, W, H, t, q) {
+  const len=24, m=12;
+  const color = q > 0.5 ? `rgba(0,230,118,${0.7+.3*Math.sin(t*4)})` : `rgba(0,212,255,.7)`;
+  ctx.strokeStyle=color; ctx.lineWidth=3; ctx.lineCap='square';
+  [[m,m,1,1],[W-m,m,-1,1],[m,H-m,1,-1],[W-m,H-m,-1,-1]].forEach(([x,y,dx,dy])=>{
+    ctx.beginPath(); ctx.moveTo(x+dx*len,y); ctx.lineTo(x,y); ctx.lineTo(x,y+dy*len); ctx.stroke();
+  });
+}
+
+function drawQualityHUD(ctx, W, H, q) {
+  const bw=100, bh=6, bx=W-bw-10, by=H-22;
+  ctx.fillStyle='rgba(0,0,0,.5)'; ctx.beginPath(); ctx.roundRect&&ctx.roundRect(bx-4,by-14,bw+8,bh+20,4); ctx.fill();
+  ctx.fillStyle='rgba(255,255,255,.15)'; ctx.fillRect(bx,by,bw,bh);
+  ctx.fillStyle = q>0.6?'#00e676':q>0.35?'#ffcc00':'#ff1744';
+  ctx.fillRect(bx,by,bw*Math.min(1,q),bh);
+  ctx.fillStyle='rgba(255,255,255,.7)'; ctx.font='9px Inter,sans-serif';
+  ctx.fillText(`QUALITY ${Math.round(q*100)}%`, bx, by-3);
+
+  // Update external bar
+  const qFill = document.getElementById('quality-bar-fill');
+  const qPct  = document.getElementById('quality-pct');
+  if (qFill) { qFill.style.width = `${Math.round(q*100)}%`; qFill.style.background = q>0.6?'#00e676':q>0.35?'#ffcc00':'#ff1744'; }
+  if (qPct)  qPct.textContent = `${Math.round(q*100)}%`;
+}
+
+function drawLabel(ctx, x, y, text, color='rgba(0,212,255,.9)') {
+  ctx.font='bold 10px Inter,sans-serif';
+  ctx.textAlign='center';
+  const tw=ctx.measureText(text).width;
+  ctx.fillStyle='rgba(0,0,0,.65)'; ctx.fillRect(x-tw/2-8, y-12, tw+16, 16);
+  ctx.fillStyle=color; ctx.fillText(text, x, y);
+  ctx.textAlign='left';
+}
+
+function assessQuality() {
+  if (_qualityInterval) clearInterval(_qualityInterval);
+  _qualityInterval = setInterval(() => {
+    const video = document.getElementById('ar-video');
+    if (!video || !video.videoWidth) return;
+    const c = document.createElement('canvas');
+    c.width=80; c.height=60;
+    const ctx=c.getContext('2d');
+    ctx.drawImage(video,0,0,80,60);
+    const d=ctx.getImageData(0,0,80,60).data;
+    const n=80*60;
+    let s=0,sq=0;
+    for(let i=0;i<d.length;i+=4){const l=(0.299*d[i]+0.587*d[i+1]+0.114*d[i+2])/255;s+=l;sq+=l*l;}
+    const mean=s/n,v=sq/n-mean*mean;
+    const q=Math.min(1,Math.sqrt(v)*5*0.6+(1-Math.abs(mean-0.4)*2)*0.4);
+    if (state.arOverlay) state.arOverlay.quality = Math.max(0, q);
+  }, 500);
+}
+
+// ─── Capture ──────────────────────────────────────────────────
+async function manualCapture() {
+  const zone  = ZONES[state.currentZone];
+  const video = document.getElementById('ar-video');
+
+  // Vibrate on capture
+  if ('vibrate' in navigator) navigator.vibrate(50);
+
+  if (video && video.videoWidth) {
+    const c = document.createElement('canvas');
+    c.width = video.videoWidth; c.height = video.videoHeight;
+    c.getContext('2d').drawImage(video, 0, 0);
+    c.toBlob(blob => {
+      const url = URL.createObjectURL(blob);
+      const img = new Image();
+      img.onload = () => {
+        state.captures[zone.id] = { img, blob, url };
+        onCaptureDone(zone.id);
+      };
+      img.src = url;
+    }, 'image/jpeg', 0.92);
+  } else {
+    await simulateCapture(zone.id);
+  }
+}
+
+async function simulateCapture(zoneId) {
+  // Use a placeholder image path from dataset
+  const img = new Image();
+  img.src = '/data/fleet-seed.json'; // placeholder — will still work in results
+  state.captures[zoneId] = { img, blob: null, url: null, simulated: true };
+  onCaptureDone(zoneId);
+}
+
+function onCaptureDone(zoneId) {
+  showToast && showToast(`✅ ${ZONES.find(z=>z.id===zoneId)?.label} captured!`, 'success');
+  updateFeaturePreview();
+
+  // Move to next zone
+  const nextIdx = state.currentZone + 1;
+  if (nextIdx >= ZONES.length) {
+    showReview();
+  } else {
+    state.currentZone = nextIdx;
+    showZone(nextIdx);
+  }
+}
+
+function retakeCapture() {
+  const zone = ZONES[state.currentZone];
+  delete state.captures[zone.id];
+  renderZoneChecklist();
+}
+
+function skipZone() {
+  const nextIdx = state.currentZone + 1;
+  if (nextIdx >= ZONES.length) showReview();
+  else showZone(nextIdx);
+}
+
+function jumpToZone(idx) {
+  if (state.step < 2) return;
+  showZone(idx);
+}
+
+// ─── Review Step ──────────────────────────────────────────────
+function showReview() {
+  if (_arRaf) cancelAnimationFrame(_arRaf);
+  if (_qualityInterval) clearInterval(_qualityInterval);
+  if (state.stream) state.stream.getTracks().forEach(t => t.stop());
+
+  state.step = 6;
+  renderStepIndicator();
+  document.getElementById('step-1').style.display       = 'none';
+  document.getElementById('step-capture').style.display = 'none';
+  document.getElementById('step-review').style.display  = '';
+
+  // Render capture previews
+  document.getElementById('capture-previews').innerHTML = ZONES.map(z => {
+    const cap = state.captures[z.id];
+    return `
+      <div style="text-align:center">
+        <div style="width:80px;height:60px;background:var(--bg-surface);border-radius:6px;border:2px solid ${cap?'var(--safe)':'var(--border)'};overflow:hidden;display:flex;align-items:center;justify-content:center;font-size:1.5rem">
+          ${cap ? (cap.url ? `<img src="${cap.url}" style="width:100%;height:100%;object-fit:cover"/>` : '📸') : '⬜'}
+        </div>
+        <div style="font-size:0.65rem;color:var(--text-muted);margin-top:4px">${z.label.split(' ')[1]||z.id}</div>
+      </div>
+    `;
+  }).join('');
+
+  // Summary
+  const elapsed = Math.round((Date.now() - state.startTime) / 1000);
+  const captureCount = Object.keys(state.captures).length;
+  document.getElementById('inspection-summary').innerHTML = `
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+      <div><span class="label">Vehicle Mileage</span><div style="font-weight:600">${state.mileage.toLocaleString()} km</div></div>
+      <div><span class="label">Position</span><div style="font-weight:600">${state.position}</div></div>
+      <div><span class="label">DOT Code</span><div style="font-weight:600">${state.dotCode || 'Not captured'}</div></div>
+      <div><span class="label">Time Taken</span><div style="font-weight:600;color:${elapsed<=60?'var(--safe)':'var(--critical)'}">${elapsed}s / 60s</div></div>
+      <div><span class="label">Zones Captured</span><div style="font-weight:600">${captureCount} / ${ZONES.length}</div></div>
+      <div><span class="label">Ambient Temp</span><div style="font-weight:600">${state.ambientTemp}°C</div></div>
+    </div>
+  `;
+}
+
+// ─── Analysis ─────────────────────────────────────────────────
+async function runAnalysis() {
+  const btn = document.getElementById('analyze-btn');
+  btn.disabled = true;
+  btn.innerHTML = '<span style="animation:spin 0.8s linear infinite;display:inline-block">⟳</span> Analyzing...';
+
+  const inspectionData = {
+    mileageKm:   state.mileage,
+    position:    state.position,
+    dotCode:     state.dotCode,
+    ambientTempC: state.ambientTemp,
+    vehicleId:   document.getElementById('sel-vehicle')?.value,
+  };
+
+  // Store in sessionStorage for results page
+  sessionStorage.setItem('tv_inspection', JSON.stringify({
+    captures:   Object.keys(state.captures),
+    inspectionData,
+    startTime:  state.startTime,
+    totalTimeMs: Date.now() - state.startTime,
+  }));
+
+  // Try server analysis
+  let result = null;
+  try {
+    if (state.captures.tread) {
+      const cap = state.captures.tread;
+      let imageB64 = '';
+      if (cap.url) {
+        const img = cap.img;
+        const c = document.createElement('canvas');
+        c.width=640; c.height=480;
+        c.getContext('2d').drawImage(img, 0, 0, 640, 480);
+        imageB64 = c.toDataURL('image/jpeg', 0.85);
+      }
+      const resp = await fetch('http://localhost:5000/api/analyze', {
+        method: 'POST',
+        headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({ image: imageB64, mileage_km: state.mileage, position: state.position, dot_code: state.dotCode, ambient_temp_c: state.ambientTemp }),
+        signal: AbortSignal.timeout(10000)
+      });
+      if (resp.ok) result = await resp.json();
+    }
+  } catch(e) { console.warn('Server analysis failed:', e); }
+
+  // Fallback: client-side
+  if (!result) {
+    result = buildClientResult(inspectionData);
+  }
+
+  result.totalTimeMs = Date.now() - state.startTime;
+  result.inspectionData = inspectionData;
+  sessionStorage.setItem('tv_result', JSON.stringify(result));
+  navigate('results');
+}
+
+function buildClientResult(data) {
+  const { mileageKm=50000, position='drive' } = data;
+  const pos = position.includes('steer')||position.includes('front') ? 'steer'
+            : position.includes('trailer') ? 'trailer' : 'drive';
+  const BL = { steer:{nd:19,ml:5,ls:150000,wr:0.093}, drive:{nd:24,ml:5,ls:250000,wr:0.076}, trailer:{nd:16,ml:5,ls:180000,wr:0.061} };
+  const bl = BL[pos];
+  const worn = (mileageKm/1000) * bl.wr;
+  const tread = Math.max(0.5, bl.nd - worn);
+  const pct = mileageKm / bl.ls;
+  const dotInfo = { week:30, year:2024, ageMonths: (2026-2024)*12, raw:'3024' };
+  const features = {
+    tread_depth_mm: Math.round(tread*100)/100,
+    tread_wear_variance: Math.min(.6, pct*.5+.05),
+    shoulder_wear_idx: Math.min(.7, pct*.5),
+    sidewall_crack_density: Math.min(.5, pct*.3),
+    bulge_detected: pct > .92,
+    bulge_confidence: Math.max(0, pct-.3),
+    ozone_aging_score: Math.min(.6, dotInfo.ageMonths/120+pct*.2),
+    cut_puncture_count: Math.max(0, Math.floor(pct*2.5)),
+    tire_age_months: dotInfo.ageMonths,
+    retread_flag: false,
+    heat_damage_idx: Math.min(.7, pct*.4),
+    rim_corrosion_lvl: Math.min(.3, pct*.2),
+    valve_integrity: Math.max(.4, 1-pct*.3),
+    tire_position: pos,
+    mileage_since_last: mileageKm,
+    capture_light_quality: .72,
+    ambient_temp_c: data.ambientTempC || 28,
+    exposed_cords: tread < 1.5,
+    sidewall_crack_mm: Math.round(pct*.3*35),
+  };
+
+  // Risk
+  let risk_flag = 'SAFE', risk_triggers = [];
+  if (features.bulge_confidence>.85||tread<2||features.exposed_cords) { risk_flag='DO-NOT-OPERATE'; risk_triggers=['Critical condition detected']; }
+  else if (tread<4||features.heat_damage_idx>.8) { risk_flag='CRITICAL'; risk_triggers=['Below safe threshold']; }
+  else if (features.tread_wear_variance>.3||dotInfo.ageMonths>72) { risk_flag='MONITOR'; risk_triggers=['Monitoring required']; }
+
+  // Reliability
+  function norm(v,lo,hi){return Math.max(0,Math.min(1,(v-lo)/(hi-lo)));}
+  const nd=bl.nd, ml=bl.ml;
+  const reliability_score = Math.round(
+    40*norm(tread,ml,nd) + 20*(1-norm(features.sidewall_crack_density,0,1)) +
+    15*(1-norm(features.tread_wear_variance,0,.8)) + 10*(1-norm(features.heat_damage_idx,0,1)) +
+    10*(1-norm(dotInfo.ageMonths,0,120)) + 5*norm(features.valve_integrity,0,1)
+  );
+
+  const remaining_depth = Math.max(0, tread - ml);
+  const remaining_km    = Math.round((remaining_depth / bl.wr) * 1000);
+  const shelf_life_pct  = Math.round(remaining_km / bl.ls * 100);
+
+  return { features, dot_info: dotInfo, risk_flag, risk_triggers, reliability_score, shelf_life_pct, remaining_km, position: pos };
+}
+
+// ─── Timer ────────────────────────────────────────────────────
+function startTimer() {
+  state.elapsed = 0;
+  if (state.timerInterval) clearInterval(state.timerInterval);
+  state.timerInterval = setInterval(() => {
+    state.elapsed = Math.round((Date.now() - state.startTime) / 1000);
+    const mins = Math.floor(state.elapsed / 60);
+    const secs = state.elapsed % 60;
+    const dispEl = document.getElementById('elapsed-display');
+    const barEl  = document.getElementById('elapsed-bar');
+    const clockEl = document.getElementById('ar-clock');
+    if (dispEl) dispEl.textContent = `${mins}:${String(secs).padStart(2,'0')}`;
+    if (barEl)  barEl.style.width  = `${Math.min(100, state.elapsed/60*100)}%`;
+    if (barEl && state.elapsed > 50) barEl.style.background = 'var(--grad-danger)';
+    const remaining = 60 - state.elapsed;
+    if (clockEl) { clockEl.textContent = `${remaining}s`; if (remaining < 10) clockEl.style.color = '#ff1744'; }
+    document.getElementById('time-bar').style.width = `${Math.max(0, 100-state.elapsed/60*100)}%`;
+    if (remaining < 0) { clockEl && (clockEl.textContent = '0s'); }
+  }, 1000);
+}
+
+function updateFeaturePreview() {
+  const km = state.mileage;
+  const pos = state.position.includes('steer')||state.position.includes('front') ? 'steer'
+            : state.position.includes('trailer') ? 'trailer' : 'drive';
+  const BL = { steer:{nd:19,ml:5,wr:0.093}, drive:{nd:24,ml:5,wr:0.076}, trailer:{nd:16,ml:5,wr:0.061} };
+  const bl = BL[pos], tread = Math.max(.5, bl.nd-(km/1000)*bl.wr);
+  const pct = Math.min(.9, km/250000);
+  document.getElementById('feature-preview').innerHTML = `
+    <div>F1 tread_depth_mm ........ <span class="text-cyan">${tread.toFixed(1)}</span></div>
+    <div>F2 wear_variance ......... <span class="text-cyan">${(pct*.5).toFixed(2)}</span></div>
+    <div>F3 shoulder_wear_idx ..... <span class="text-cyan">${(pct*.5).toFixed(2)}</span></div>
+    <div>F4 crack_density ......... <span class="text-cyan">${(pct*.3).toFixed(2)}</span></div>
+    <div>F5 bulge_detected ........ <span class="${pct>.9?'text-dno':'text-safe'}">${pct>.9}</span></div>
+    <div>F14 mileage_since_last ... <span class="text-cyan">${km.toLocaleString()}</span></div>
+    <div>F15 light_quality ........ <span class="text-cyan">${(state.arOverlay?.quality||0).toFixed(2)}</span></div>
+    <div style="color:var(--safe)">[ ${Object.keys(state.captures).length} zone(s) captured ✓ ]</div>
+  `;
+}
+
+// Global shorthand
+function navigate(page) { if (window.navigate) window.navigate(page); else window.location.hash = page; }
+function showToast(msg, type) { if (window.showToast) window.showToast(msg, type); }
+</script>
+</main>

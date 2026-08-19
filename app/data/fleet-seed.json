@@ -1,0 +1,92 @@
+{
+  "fleet": {
+    "name": "TrustGrid Fleet Alpha",
+    "region": "Maharashtra, India",
+    "baseDepot": "Mumbai Hub"
+  },
+  "routes": [
+    { "id": "R01", "name": "Mumbai → Pune Express", "origin": "Mumbai", "destination": "Pune", "distanceKm": 149, "frequency": "daily" },
+    { "id": "R02", "name": "Pune → Nashik Corridor", "origin": "Pune", "destination": "Nashik", "distanceKm": 211, "frequency": "daily" },
+    { "id": "R03", "name": "Mumbai → Nagpur Highway", "origin": "Mumbai", "destination": "Nagpur", "distanceKm": 835, "frequency": "tri-weekly" }
+  ],
+  "vehicles": [
+    {
+      "id": "V001", "type": "truck", "make": "TATA", "model": "Prima 4028.S", "regNo": "MH-01-AT-2210",
+      "routeId": "R01", "mileageKm": 52000, "lastInspection": "2026-08-10", "driverName": "Rajesh Kumar",
+      "telematics": { "avgSpeed": 68, "harshBrakeEvents": 12, "harshAccelEvents": 8, "corneringEvents": 5, "idleTimePct": 18, "fuelEfficiency": 6.2, "engineTempC": 92 },
+      "tires": [
+        { "id": "T001-FL", "position": "steer-fl", "label": "Front Left", "mileageOnTire": 28000, "dotCode": "3021", "brand": "MRF", "size": "295/80R22.5" },
+        { "id": "T001-FR", "position": "steer-fr", "label": "Front Right", "mileageOnTire": 28000, "dotCode": "3021", "brand": "MRF", "size": "295/80R22.5" },
+        { "id": "T001-RLL", "position": "drive-rll", "label": "Rear Left Outer", "mileageOnTire": 52000, "dotCode": "1219", "brand": "Apollo", "size": "315/80R22.5" },
+        { "id": "T001-RLI", "position": "drive-rli", "label": "Rear Left Inner", "mileageOnTire": 52000, "dotCode": "1219", "brand": "Apollo", "size": "315/80R22.5" },
+        { "id": "T001-RRL", "position": "drive-rrl", "label": "Rear Right Outer", "mileageOnTire": 45000, "dotCode": "0820", "brand": "Apollo", "size": "315/80R22.5" },
+        { "id": "T001-RRI", "position": "drive-rri", "label": "Rear Right Inner", "mileageOnTire": 45000, "dotCode": "0820", "brand": "Apollo", "size": "315/80R22.5" }
+      ]
+    },
+    {
+      "id": "V002", "type": "truck", "make": "TATA", "model": "LPT 2518", "regNo": "MH-04-BK-7743",
+      "routeId": "R02", "mileageKm": 79000, "lastInspection": "2026-08-05", "driverName": "Suresh Patil",
+      "telematics": { "avgSpeed": 72, "harshBrakeEvents": 24, "harshAccelEvents": 19, "corneringEvents": 14, "idleTimePct": 22, "fuelEfficiency": 5.1, "engineTempC": 98 },
+      "tires": [
+        { "id": "T002-FL", "position": "steer-fl", "label": "Front Left", "mileageOnTire": 79000, "dotCode": "1518", "brand": "CEAT", "size": "295/80R22.5" },
+        { "id": "T002-FR", "position": "steer-fr", "label": "Front Right", "mileageOnTire": 79000, "dotCode": "1518", "brand": "CEAT", "size": "295/80R22.5" },
+        { "id": "T002-RLL", "position": "drive-rll", "label": "Rear Left Outer", "mileageOnTire": 79000, "dotCode": "1518", "brand": "CEAT", "size": "315/80R22.5" },
+        { "id": "T002-RLI", "position": "drive-rli", "label": "Rear Left Inner", "mileageOnTire": 79000, "dotCode": "1518", "brand": "CEAT", "size": "315/80R22.5" },
+        { "id": "T002-RRL", "position": "drive-rrl", "label": "Rear Right Outer", "mileageOnTire": 60000, "dotCode": "2220", "brand": "Bridgestone", "size": "315/80R22.5" },
+        { "id": "T002-RRI", "position": "drive-rri", "label": "Rear Right Inner", "mileageOnTire": 60000, "dotCode": "2220", "brand": "Bridgestone", "size": "315/80R22.5" }
+      ]
+    },
+    {
+      "id": "V003", "type": "van", "make": "Force", "model": "Traveller", "regNo": "MH-12-CD-5521",
+      "routeId": "R01", "mileageKm": 38000, "lastInspection": "2026-08-15", "driverName": "Priya Sharma",
+      "telematics": { "avgSpeed": 58, "harshBrakeEvents": 4, "harshAccelEvents": 3, "corneringEvents": 2, "idleTimePct": 12, "fuelEfficiency": 9.8, "engineTempC": 87 },
+      "tires": [
+        { "id": "T003-FL", "position": "steer-fl", "label": "Front Left", "mileageOnTire": 38000, "dotCode": "1122", "brand": "JK Tyre", "size": "215/75R16" },
+        { "id": "T003-FR", "position": "steer-fr", "label": "Front Right", "mileageOnTire": 38000, "dotCode": "1122", "brand": "JK Tyre", "size": "215/75R16" },
+        { "id": "T003-RL", "position": "drive-rl", "label": "Rear Left", "mileageOnTire": 38000, "dotCode": "1122", "brand": "JK Tyre", "size": "215/75R16" },
+        { "id": "T003-RR", "position": "drive-rr", "label": "Rear Right", "mileageOnTire": 38000, "dotCode": "1122", "brand": "JK Tyre", "size": "215/75R16" }
+      ]
+    },
+    {
+      "id": "V004", "type": "truck", "make": "Ashok Leyland", "model": "BOSS 1415", "regNo": "MH-14-EF-9988",
+      "routeId": "R03", "mileageKm": 100000, "lastInspection": "2026-07-28", "driverName": "Mohan Das",
+      "telematics": { "avgSpeed": 75, "harshBrakeEvents": 31, "harshAccelEvents": 27, "corneringEvents": 18, "idleTimePct": 28, "fuelEfficiency": 4.8, "engineTempC": 104 },
+      "tires": [
+        { "id": "T004-FL", "position": "steer-fl", "label": "Front Left", "mileageOnTire": 100000, "dotCode": "0217", "brand": "MRF", "size": "295/80R22.5" },
+        { "id": "T004-FR", "position": "steer-fr", "label": "Front Right", "mileageOnTire": 100000, "dotCode": "0217", "brand": "MRF", "size": "295/80R22.5" },
+        { "id": "T004-RLL", "position": "drive-rll", "label": "Rear Left Outer", "mileageOnTire": 100000, "dotCode": "0217", "brand": "MRF", "size": "315/80R22.5" },
+        { "id": "T004-RLI", "position": "drive-rli", "label": "Rear Left Inner", "mileageOnTire": 100000, "dotCode": "0217", "brand": "MRF", "size": "315/80R22.5" },
+        { "id": "T004-RRL", "position": "drive-rrl", "label": "Rear Right Outer", "mileageOnTire": 85000, "dotCode": "1119", "brand": "MRF", "size": "315/80R22.5" },
+        { "id": "T004-RRI", "position": "drive-rri", "label": "Rear Right Inner", "mileageOnTire": 85000, "dotCode": "1119", "brand": "MRF", "size": "315/80R22.5" }
+      ]
+    },
+    {
+      "id": "V005", "type": "car", "make": "Mahindra", "model": "Scorpio N", "regNo": "MH-01-GH-1234",
+      "routeId": "R01", "mileageKm": 22000, "lastInspection": "2026-08-18", "driverName": "Anita Rao",
+      "telematics": { "avgSpeed": 65, "harshBrakeEvents": 2, "harshAccelEvents": 1, "corneringEvents": 3, "idleTimePct": 8, "fuelEfficiency": 12.5, "engineTempC": 85 },
+      "tires": [
+        { "id": "T005-FL", "position": "steer-fl", "label": "Front Left", "mileageOnTire": 22000, "dotCode": "4023", "brand": "Apollo", "size": "255/60R18" },
+        { "id": "T005-FR", "position": "steer-fr", "label": "Front Right", "mileageOnTire": 22000, "dotCode": "4023", "brand": "Apollo", "size": "255/60R18" },
+        { "id": "T005-RL", "position": "drive-rl", "label": "Rear Left", "mileageOnTire": 22000, "dotCode": "4023", "brand": "Apollo", "size": "255/60R18" },
+        { "id": "T005-RR", "position": "drive-rr", "label": "Rear Right", "mileageOnTire": 22000, "dotCode": "4023", "brand": "Apollo", "size": "255/60R18" }
+      ]
+    },
+    {
+      "id": "V006", "type": "van", "make": "Tata", "model": "Ace Gold", "regNo": "MH-09-IJ-6677",
+      "routeId": "R02", "mileageKm": 61000, "lastInspection": "2026-08-12", "driverName": "Vikram Singh",
+      "telematics": { "avgSpeed": 55, "harshBrakeEvents": 9, "harshAccelEvents": 7, "corneringEvents": 6, "idleTimePct": 20, "fuelEfficiency": 10.2, "engineTempC": 89 },
+      "tires": [
+        { "id": "T006-FL", "position": "steer-fl", "label": "Front Left", "mileageOnTire": 61000, "dotCode": "2120", "brand": "CEAT", "size": "165/80R14" },
+        { "id": "T006-FR", "position": "steer-fr", "label": "Front Right", "mileageOnTire": 61000, "dotCode": "2120", "brand": "CEAT", "size": "165/80R14" },
+        { "id": "T006-RL", "position": "drive-rl", "label": "Rear Left", "mileageOnTire": 50000, "dotCode": "3322", "brand": "CEAT", "size": "165/80R14" },
+        { "id": "T006-RR", "position": "drive-rr", "label": "Rear Right", "mileageOnTire": 50000, "dotCode": "3322", "brand": "CEAT", "size": "165/80R14" }
+      ]
+    }
+  ],
+  "maintenanceSchedule": [
+    { "id": "MS001", "vehicleId": "V002", "tireId": "T002-FL", "type": "replacement", "dueDate": "2026-08-22", "priority": "critical", "notes": "Tread depth critical — steer axle" },
+    { "id": "MS002", "vehicleId": "V004", "tireId": "T004-FL", "type": "replacement", "dueDate": "2026-08-20", "priority": "do-not-operate", "notes": "Age > 9 years, immediate replacement required" },
+    { "id": "MS003", "vehicleId": "V001", "tireId": "T001-RLL", "type": "inspection", "dueDate": "2026-08-25", "priority": "monitor", "notes": "Uneven wear detected on drive axle" },
+    { "id": "MS004", "vehicleId": "V006", "tireId": "T006-FL", "type": "inspection", "dueDate": "2026-08-28", "priority": "monitor", "notes": "Mileage threshold reached" }
+  ]
+}

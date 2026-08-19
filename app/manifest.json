@@ -1,0 +1,23 @@
+{
+  "name": "Tire Vision — Fleet Tire Intelligence",
+  "short_name": "TireVision",
+  "description": "Fleet tire inspection, CV analysis, AR guidance, and Digital Twin for predictive maintenance",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0a0c14",
+  "theme_color": "#00d4ff",
+  "orientation": "portrait-primary",
+  "scope": "/",
+  "lang": "en",
+  "categories": ["productivity", "utilities", "automotive"],
+  "icons": [
+    { "src": "assets/icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any maskable" },
+    { "src": "assets/icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+  ],
+  "shortcuts": [
+    { "name": "New Inspection", "short_name": "Inspect", "description": "Start a tire inspection", "url": "/pages/inspect.html", "icons": [{ "src": "assets/icons/icon-192.png", "sizes": "192x192" }] },
+    { "name": "Fleet Dashboard", "short_name": "Fleet", "description": "View fleet status", "url": "/pages/fleet.html", "icons": [{ "src": "assets/icons/icon-192.png", "sizes": "192x192" }] }
+  ],
+  "screenshots": [],
+  "prefer_related_applications": false
+}

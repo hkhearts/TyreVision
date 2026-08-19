@@ -1,0 +1,368 @@
+<!-- Dashboard Page — Fleet Command Center -->
+<main>
+<link rel="stylesheet" href="/css/main.css"/>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+
+<style>
+.dashboard-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  grid-template-rows: auto;
+  gap: var(--space-lg);
+}
+.dash-kpis     { grid-column: 1 / -1; }
+.dash-alerts   { grid-column: 1 / 2; grid-row: 2; }
+.dash-schedule { grid-column: 2 / 3; grid-row: 2; }
+.dash-telematics{ grid-column: 3 / 4; grid-row: 2; }
+.dash-fleet-map{ grid-column: 1 / 3; grid-row: 3; }
+.dash-recent   { grid-column: 3 / 4; grid-row: 3; }
+
+@media (max-width: 1100px) {
+  .dashboard-grid { grid-template-columns: 1fr 1fr; }
+  .dash-alerts, .dash-schedule, .dash-telematics, .dash-fleet-map, .dash-recent {
+    grid-column: auto; grid-row: auto;
+  }
+}
+@media (max-width: 700px) {
+  .dashboard-grid { grid-template-columns: 1fr; }
+}
+
+.fleet-route-bar {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  padding: 10px var(--space-md);
+  background: var(--bg-surface);
+  border-radius: var(--radius-md);
+  margin-bottom: var(--space-sm);
+  font-size: 0.85rem;
+}
+.route-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+.route-line { flex: 1; height: 2px; background: linear-gradient(90deg, var(--cyan), transparent); }
+.vehicle-list-item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-md);
+  padding: 10px var(--space-md);
+  border-radius: var(--radius-md);
+  background: var(--bg-surface);
+  cursor: pointer;
+  transition: background 0.15s;
+  margin-bottom: 6px;
+}
+.vehicle-list-item:hover { background: var(--bg-card-hover); }
+.vehicle-icon { font-size: 1.5rem; }
+.driving-score-bar {
+  width: 80px;
+  height: 6px;
+  background: var(--bg-surface);
+  border-radius: 3px;
+  overflow: hidden;
+}
+.driving-score-fill { height: 100%; border-radius: 3px; transition: width 1s ease; }
+</style>
+
+<div class="dashboard-grid" id="dashboard-root">
+
+  <!-- KPI Cards -->
+  <section class="dash-kpis">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:var(--space-md)">
+      <div>
+        <h1 style="font-size:1.6rem;margin-bottom:2px">Fleet Command Center</h1>
+        <p id="last-updated" style="font-size:0.8rem;color:var(--text-muted)">Loading fleet data...</p>
+      </div>
+      <button class="btn btn-primary" onclick="navigate('inspect')" style="gap:8px">
+        <span>🔬</span> Start Inspection
+      </button>
+    </div>
+    <div class="kpi-grid" id="kpi-grid">
+      <div class="kpi-card cyan skeleton" style="height:120px"></div>
+      <div class="kpi-card cyan skeleton" style="height:120px"></div>
+      <div class="kpi-card cyan skeleton" style="height:120px"></div>
+      <div class="kpi-card cyan skeleton" style="height:120px"></div>
+      <div class="kpi-card cyan skeleton" style="height:120px"></div>
+    </div>
+  </section>
+
+  <!-- Active Alerts -->
+  <section class="card dash-alerts animate-slide-up anim-delay-1">
+    <div class="card-header">
+      <span class="card-title">🚨 Active Alerts</span>
+      <button class="btn btn-ghost btn-sm" onclick="navigate('alerts')">View All →</button>
+    </div>
+    <div id="alerts-list" style="display:flex;flex-direction:column;gap:8px;max-height:280px;overflow-y:auto">
+      <div class="skeleton" style="height:60px;border-radius:8px"></div>
+      <div class="skeleton" style="height:60px;border-radius:8px"></div>
+      <div class="skeleton" style="height:60px;border-radius:8px"></div>
+    </div>
+  </section>
+
+  <!-- Maintenance Schedule -->
+  <section class="card dash-schedule animate-slide-up anim-delay-2">
+    <div class="card-header">
+      <span class="card-title">📅 Maintenance Schedule</span>
+      <span class="label" id="schedule-count">0 items</span>
+    </div>
+    <div id="schedule-list" style="display:flex;flex-direction:column;gap:6px;max-height:280px;overflow-y:auto"></div>
+  </section>
+
+  <!-- Telematics -->
+  <section class="card dash-telematics animate-slide-up anim-delay-3">
+    <div class="card-header">
+      <span class="card-title">📡 Telematics Summary</span>
+    </div>
+    <div id="telematics-panel" style="display:grid;grid-template-columns:1fr 1fr;gap:12px"></div>
+    <div style="margin-top:16px">
+      <div class="label" style="margin-bottom:8px">Driving Behavior — Fleet Average</div>
+      <div id="driving-scores" style="display:flex;flex-direction:column;gap:6px;max-height:160px;overflow-y:auto"></div>
+    </div>
+  </section>
+
+  <!-- Fleet Map / Vehicle List -->
+  <section class="card dash-fleet-map animate-slide-up anim-delay-2">
+    <div class="card-header">
+      <span class="card-title">🚛 Fleet Vehicles</span>
+      <button class="btn btn-ghost btn-sm" onclick="navigate('fleet')">Fleet Manager →</button>
+    </div>
+    <div id="fleet-vehicle-list" style="display:flex;flex-direction:column;gap:6px;max-height:260px;overflow-y:auto"></div>
+  </section>
+
+  <!-- Recent Inspections -->
+  <section class="card dash-recent animate-slide-up anim-delay-3">
+    <div class="card-header">
+      <span class="card-title">🔬 Recent Inspections</span>
+    </div>
+    <div id="recent-inspections" style="display:flex;flex-direction:column;gap:6px">
+      <div style="text-align:center;color:var(--text-muted);padding:2rem">
+        <div style="font-size:2rem;margin-bottom:8px">📋</div>
+        <p>No inspections yet</p>
+        <button class="btn btn-primary btn-sm" style="margin-top:10px" onclick="navigate('inspect')">Start First Inspection</button>
+      </div>
+    </div>
+  </section>
+
+</div>
+
+<script>
+(async function initDashboard() {
+  // ─── Load Fleet Data ─────────────────────────────────────
+  let vehicles = [], fleetData = null;
+  let alerts = [], schedule = [];
+
+  try {
+    const resp = await fetch('http://localhost:5000/api/fleet', { signal: AbortSignal.timeout(3000) });
+    if (resp.ok) fleetData = await resp.json();
+  } catch {}
+
+  if (!fleetData) {
+    try {
+      const r = await fetch('/data/fleet-seed.json');
+      fleetData = await r.json();
+    } catch(e) { console.error('Cannot load fleet data', e); }
+  }
+
+  vehicles = fleetData?.vehicles || [];
+
+  // ─── Compute KPIs ─────────────────────────────────────────
+  const LIFESPAN = { steer: 150000, drive: 250000, trailer: 180000 };
+  const WEAR_RATE = { steer: 0.093,  drive: 0.076,  trailer: 0.061  };
+
+  function posKey(p) {
+    const l = (p || '').toLowerCase();
+    if (l.includes('steer') || l.includes('front')) return 'steer';
+    if (l.includes('trailer')) return 'trailer';
+    return 'drive';
+  }
+
+  function dotAge(dotCode) {
+    const m = (dotCode || '').match(/(\d{2})(\d{2})/);
+    if (!m) return 36;
+    const ww = parseInt(m[1]), yy = parseInt(m[2]);
+    const yr = yy <= 30 ? 2000 + yy : 1900 + yy;
+    const mfg = new Date(yr, 0, 1);
+    mfg.setDate(mfg.getDate() + (ww-1)*7);
+    return (Date.now() - mfg.getTime()) / (1000*60*60*24*30.44);
+  }
+
+  function tireRisk(tire) {
+    const pos = posKey(tire.position);
+    const km  = tire.mileageOnTire || 0;
+    const pct = km / LIFESPAN[pos];
+    const ageMo = dotAge(tire.dotCode);
+    if (pct >= 0.95 || ageMo > 108) return 'DO-NOT-OPERATE';
+    if (pct >= 0.82 || ageMo > 96)  return 'CRITICAL';
+    if (pct >= 0.65 || ageMo > 72)  return 'MONITOR';
+    return 'SAFE';
+  }
+
+  function drivingScore(telem) {
+    if (!telem) return 100;
+    const d = Math.min(1, (telem.harshBrakeEvents||0)/30)*25
+            + Math.min(1, (telem.harshAccelEvents||0)/25)*20
+            + Math.min(1, (telem.corneringEvents||0)/20)*15
+            + Math.min(1, (telem.idleTimePct||0)/30)*10
+            + Math.max(0, (10-(telem.fuelEfficiency||10))/10)*10
+            + Math.min(1, Math.max(0,((telem.engineTempC||90)-95)/15))*20;
+    return Math.round(Math.max(0, 100 - d));
+  }
+
+  const riskCount = { 'SAFE':0, 'MONITOR':0, 'CRITICAL':0, 'DO-NOT-OPERATE':0 };
+  let totalTires = 0;
+  vehicles.forEach(v => {
+    (v.tires||[]).forEach(t => {
+      const r = tireRisk(t);
+      riskCount[r]++;
+      totalTires++;
+    });
+  });
+
+  // ─── Render KPIs ─────────────────────────────────────────
+  const alertCount = riskCount['DO-NOT-OPERATE'] + riskCount['CRITICAL'];
+  document.getElementById('kpi-grid').innerHTML = `
+    <div class="kpi-card cyan animate-slide-up">
+      <div class="kpi-label">Total Vehicles</div>
+      <div class="kpi-value text-cyan">${vehicles.length}</div>
+      <div class="kpi-trend text-muted">${totalTires} tires monitored</div>
+      <div class="kpi-icon">🚛</div>
+    </div>
+    <div class="kpi-card safe animate-slide-up anim-delay-1">
+      <div class="kpi-label">SAFE Tires</div>
+      <div class="kpi-value text-safe">${riskCount['SAFE']}</div>
+      <div class="kpi-trend text-muted">${Math.round(riskCount['SAFE']/Math.max(1,totalTires)*100)}% of fleet</div>
+      <div class="kpi-icon">✅</div>
+    </div>
+    <div class="kpi-card monitor animate-slide-up anim-delay-2">
+      <div class="kpi-label">MONITOR</div>
+      <div class="kpi-value text-monitor">${riskCount['MONITOR']}</div>
+      <div class="kpi-trend text-muted">Needs attention</div>
+      <div class="kpi-icon">👁️</div>
+    </div>
+    <div class="kpi-card critical animate-slide-up anim-delay-3">
+      <div class="kpi-label">CRITICAL</div>
+      <div class="kpi-value text-critical">${riskCount['CRITICAL']}</div>
+      <div class="kpi-trend text-muted">Replace &lt;48h</div>
+      <div class="kpi-icon">⚠️</div>
+    </div>
+    <div class="kpi-card dno animate-slide-up anim-delay-4" ${riskCount['DO-NOT-OPERATE']>0?'style="animation:pulse-border 1s ease infinite"':''}>
+      <div class="kpi-label">DO NOT OPERATE</div>
+      <div class="kpi-value text-dno">${riskCount['DO-NOT-OPERATE']}</div>
+      <div class="kpi-trend text-muted">Immediate action</div>
+      <div class="kpi-icon">🚫</div>
+    </div>
+  `;
+
+  // Update badge
+  const badge = document.getElementById('alert-badge');
+  if (badge && alertCount > 0) { badge.textContent = alertCount; badge.style.display = ''; }
+
+  document.getElementById('last-updated').textContent =
+    `Last updated: ${new Date().toLocaleTimeString()} — ${new Date().toLocaleDateString('en-IN')}`;
+
+  // ─── Render Alerts ────────────────────────────────────────
+  const alertsHtml = [];
+  vehicles.forEach(v => {
+    (v.tires||[]).forEach(t => {
+      const r = tireRisk(t);
+      if (r === 'SAFE') return;
+      const icons = { 'DO-NOT-OPERATE':'🚫', 'CRITICAL':'⚠️', 'MONITOR':'👁️' };
+      const cls   = { 'DO-NOT-OPERATE':'dno', 'CRITICAL':'critical', 'MONITOR':'monitor' };
+      alertsHtml.push(`
+        <div class="alert-item" onclick="navigate('vehicle','${v.id}')">
+          <div class="alert-icon">${icons[r]}</div>
+          <div class="alert-body">
+            <div class="alert-title">${r} — ${v.make} ${v.model}</div>
+            <div class="alert-desc">${t.label} • ${t.mileageOnTire?.toLocaleString()} km • ${t.brand}</div>
+          </div>
+          <span class="risk-badge ${cls[r]}">${r === 'DO-NOT-OPERATE' ? 'DNO' : r}</span>
+        </div>
+      `);
+    });
+  });
+  document.getElementById('alerts-list').innerHTML = alertsHtml.length
+    ? alertsHtml.join('')
+    : '<div style="text-align:center;color:var(--text-muted);padding:2rem"><div style="font-size:2rem">✅</div><p>No active alerts</p></div>';
+
+  // ─── Maintenance Schedule ──────────────────────────────────
+  const sched = [];
+  vehicles.forEach(v => {
+    (v.tires||[]).forEach(t => {
+      const r = tireRisk(t);
+      if (r === 'SAFE') return;
+      const due = new Date();
+      if (r === 'DO-NOT-OPERATE') due.setDate(due.getDate());
+      else if (r === 'CRITICAL')  due.setDate(due.getDate() + 2);
+      else                         due.setDate(due.getDate() + 14);
+      sched.push({ v, t, r, due });
+    });
+  });
+  sched.sort((a,b) => a.due - b.due);
+  document.getElementById('schedule-count').textContent = `${sched.length} items`;
+  document.getElementById('schedule-list').innerHTML = sched.slice(0,6).map(({v,t,r,due}) => `
+    <div class="fleet-route-bar" style="cursor:pointer" onclick="navigate('vehicle','${v.id}')">
+      <span class="route-dot" style="background:var(--${r==='DO-NOT-OPERATE'?'dno':r==='CRITICAL'?'critical':'monitor'})"></span>
+      <div style="flex:1">
+        <div style="font-weight:600;font-size:0.82rem">${v.make} ${v.model} · ${t.label}</div>
+        <div style="font-size:0.72rem;color:var(--text-muted)">${r === 'DO-NOT-OPERATE' ? '⚡ IMMEDIATE' : due.toLocaleDateString('en-IN')}</div>
+      </div>
+      <span style="font-size:0.7rem;font-weight:700;color:var(--${r==='DO-NOT-OPERATE'?'dno':r==='CRITICAL'?'critical':'monitor'})">${r==='DO-NOT-OPERATE'?'REPLACE NOW':r==='CRITICAL'?'48H':'INSPECT'}</span>
+    </div>
+  `).join('') || '<div style="color:var(--text-muted);text-align:center;padding:1rem">✅ No upcoming maintenance</div>';
+
+  // ─── Telematics ────────────────────────────────────────────
+  const allTelem = vehicles.map(v => v.telematics || {});
+  const avg = (key) => allTelem.length ? Math.round(allTelem.reduce((s,t)=>s+(t[key]||0),0)/allTelem.length*10)/10 : 0;
+  const telemStats = [
+    { label: 'Avg Speed', value: `${avg('avgSpeed')} km/h`,  icon: '🏎️' },
+    { label: 'Fuel Eff.',  value: `${avg('fuelEfficiency')} km/L`, icon: '⛽' },
+    { label: 'Avg Engine', value: `${avg('engineTempC')}°C`, icon: '🌡️' },
+    { label: 'Idle Time',  value: `${avg('idleTimePct')}%`,  icon: '⏸️' },
+  ];
+  document.getElementById('telematics-panel').innerHTML = telemStats.map(s => `
+    <div style="background:var(--bg-surface);border-radius:8px;padding:10px;text-align:center">
+      <div style="font-size:1.3rem">${s.icon}</div>
+      <div style="font-weight:700;font-size:1rem;margin:4px 0">${s.value}</div>
+      <div class="label">${s.label}</div>
+    </div>
+  `).join('');
+
+  // Driving scores
+  document.getElementById('driving-scores').innerHTML = vehicles.map(v => {
+    const score = drivingScore(v.telematics);
+    const color = score >= 80 ? '#00e676' : score >= 60 ? '#ffcc00' : '#ff6b00';
+    return `
+      <div style="display:flex;align-items:center;gap:8px;font-size:0.8rem">
+        <span style="width:24px;text-align:center">${v.type==='truck'?'🚛':v.type==='van'?'🚐':'🚗'}</span>
+        <span style="flex:1;color:var(--text-secondary);font-size:0.75rem;truncate">${v.make} ${v.model}</span>
+        <div class="driving-score-bar"><div class="driving-score-fill" style="width:${score}%;background:${color}"></div></div>
+        <span style="font-weight:700;color:${color};width:30px;text-align:right">${score}</span>
+      </div>
+    `;
+  }).join('');
+
+  // ─── Fleet Vehicle List ─────────────────────────────────────
+  document.getElementById('fleet-vehicle-list').innerHTML = vehicles.map(v => {
+    const worstRisk = (v.tires||[]).reduce((worst, t) => {
+      const r = tireRisk(t);
+      const order = {'SAFE':0,'MONITOR':1,'CRITICAL':2,'DO-NOT-OPERATE':3};
+      return order[r] > order[worst] ? r : worst;
+    }, 'SAFE');
+    const cls = {'SAFE':'safe','MONITOR':'monitor','CRITICAL':'critical','DO-NOT-OPERATE':'dno'};
+    const ds  = drivingScore(v.telematics);
+    return `
+      <div class="vehicle-list-item" onclick="navigate('vehicle')">
+        <span class="vehicle-icon">${v.type==='truck'?'🚛':v.type==='van'?'🚐':'🚗'}</span>
+        <div style="flex:1">
+          <div style="font-weight:600;font-size:0.88rem">${v.make} ${v.model}</div>
+          <div style="font-size:0.72rem;color:var(--text-muted)">${v.regNo} • ${(v.mileageKm||0).toLocaleString()} km</div>
+        </div>
+        <div style="text-align:right">
+          <span class="risk-badge ${cls[worstRisk]}" style="font-size:0.6rem">${worstRisk==='DO-NOT-OPERATE'?'DNO':worstRisk}</span>
+          <div style="font-size:0.7rem;color:var(--text-muted);margin-top:2px">Drive: ${ds}/100</div>
+        </div>
+      </div>
+    `;
+  }).join('');
+
+})();
+</script>
+</main>

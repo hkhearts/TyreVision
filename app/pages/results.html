@@ -1,0 +1,692 @@
+<!-- Results Page — Inspection Results + 3D Digital Twin -->
+<main>
+<link rel="stylesheet" href="/css/main.css"/>
+
+<style>
+.results-layout {
+  display: grid;
+  grid-template-columns: 300px 1fr 320px;
+  gap: var(--space-lg);
+  align-items: start;
+}
+@media (max-width: 1200px) {
+  .results-layout { grid-template-columns: 1fr 1fr; }
+  .results-twin   { grid-column: 1 / -1; }
+}
+@media (max-width: 750px) {
+  .results-layout { grid-template-columns: 1fr; }
+}
+
+.metric-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--border);
+  font-size: 0.82rem;
+}
+.metric-row:last-child { border-bottom: none; }
+.metric-key   { color: var(--text-muted); font-family: var(--font-mono); }
+.metric-value { font-weight: 600; }
+
+.feature-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 0;
+  font-size: 0.72rem;
+  font-family: var(--font-mono);
+}
+.feature-bar {
+  width: 50px; height: 4px;
+  background: var(--bg-surface);
+  border-radius: 2px;
+  overflow: hidden;
+}
+.feature-bar-fill { height: 100%; border-radius: 2px; }
+.feature-key   { color: var(--text-muted); flex: 1; }
+.feature-value { width: 36px; text-align: right; font-weight: 600; }
+
+.action-card {
+  padding: 14px 16px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border);
+  background: var(--bg-surface);
+  font-size: 0.85rem;
+}
+
+.radial-gauge {
+  position: relative;
+  width: 120px;
+  height: 120px;
+  flex-shrink: 0;
+}
+.radial-gauge svg { transform: rotate(-90deg); }
+.radial-value {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  font-weight: 800;
+  font-size: 1.6rem;
+  line-height: 1;
+}
+.radial-unit { font-size: 0.6rem; color: var(--text-muted); font-weight: 500; margin-top: 2px; }
+
+.zone-tab {
+  padding: 6px 14px;
+  border-radius: var(--radius-full);
+  font-size: 0.78rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s;
+  border: 1px solid var(--border);
+  background: var(--bg-surface);
+  color: var(--text-secondary);
+}
+.zone-tab.active { background: var(--cyan-glow); border-color: var(--cyan); color: var(--cyan); }
+</style>
+
+<div id="results-root">
+  <!-- Loading -->
+  <div id="results-loading" style="display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:60vh;gap:1.5rem">
+    <div style="position:relative;width:80px;height:80px">
+      <svg viewBox="0 0 80 80" style="animation:spin 1.5s linear infinite;width:80px;height:80px">
+        <circle cx="40" cy="40" r="34" fill="none" stroke="var(--bg-surface)" stroke-width="8"/>
+        <circle cx="40" cy="40" r="34" fill="none" stroke="var(--cyan)" stroke-width="8" stroke-linecap="round"
+          stroke-dasharray="80 134" stroke-dashoffset="0"/>
+      </svg>
+    </div>
+    <div style="text-align:center">
+      <h3 style="color:var(--cyan)">🧠 AI Engine Processing</h3>
+      <p id="analysis-status">Extracting feature vector...</p>
+    </div>
+    <div id="analysis-steps" style="display:flex;flex-direction:column;gap:6px;font-size:0.82rem;color:var(--text-muted)"></div>
+  </div>
+
+  <!-- Results (hidden until ready) -->
+  <div id="results-content" style="display:none">
+    <!-- Risk Banner -->
+    <div class="risk-banner" id="risk-banner" style="margin-bottom:var(--space-lg)">
+      <span id="risk-icon" style="font-size:1.8rem"></span>
+      <div style="flex:1">
+        <div id="risk-flag-label" style="font-size:1.3rem;font-weight:800;letter-spacing:.08em"></div>
+        <div id="risk-action-label" style="font-size:0.85rem;opacity:.85;margin-top:2px;text-transform:none;letter-spacing:0;font-weight:400"></div>
+      </div>
+      <div style="text-align:right">
+        <div id="total-time" style="font-size:0.75rem;opacity:.7"></div>
+      </div>
+    </div>
+
+    <!-- Main grid -->
+    <div class="results-layout">
+
+      <!-- Left: Scores -->
+      <div style="display:flex;flex-direction:column;gap:var(--space-md)">
+
+        <!-- Reliability Score -->
+        <div class="card animate-slide-up">
+          <div class="label" style="margin-bottom:var(--space-md)">Reliability Score</div>
+          <div style="display:flex;align-items:center;gap:var(--space-md)">
+            <div class="radial-gauge">
+              <svg viewBox="0 0 120 120" width="120" height="120">
+                <circle cx="60" cy="60" r="50" fill="none" stroke="var(--bg-surface)" stroke-width="10"/>
+                <circle id="reliability-arc" cx="60" cy="60" r="50" fill="none" stroke-width="10"
+                  stroke-linecap="round" stroke-dasharray="314" stroke-dashoffset="314" style="transition:stroke-dashoffset 1.5s ease"/>
+              </svg>
+              <div class="radial-value">
+                <span id="reliability-val" style="font-size:2rem">—</span>
+                <span class="radial-unit">/ 100</span>
+              </div>
+            </div>
+            <div>
+              <div id="reliability-grade" style="font-size:2.5rem;font-weight:900;line-height:1">—</div>
+              <div class="label" style="margin-top:4px">Grade</div>
+              <div id="reliability-desc" style="font-size:0.75rem;color:var(--text-muted);margin-top:6px;line-height:1.4"></div>
+            </div>
+          </div>
+          <div id="reliability-components" style="margin-top:var(--space-md);display:flex;flex-direction:column;gap:4px"></div>
+        </div>
+
+        <!-- Shelf Life -->
+        <div class="card animate-slide-up anim-delay-1">
+          <div class="label" style="margin-bottom:var(--space-md)">Shelf Life — Remaining Usable Life</div>
+          <div style="display:flex;align-items:center;gap:var(--space-md)">
+            <div class="radial-gauge">
+              <svg viewBox="0 0 120 120" width="120" height="120">
+                <circle cx="60" cy="60" r="50" fill="none" stroke="var(--bg-surface)" stroke-width="10"/>
+                <circle id="shelf-arc" cx="60" cy="60" r="50" fill="none" stroke-width="10"
+                  stroke-linecap="round" stroke-dasharray="314" stroke-dashoffset="314" style="transition:stroke-dashoffset 1.5s ease"/>
+              </svg>
+              <div class="radial-value">
+                <span id="shelf-val" style="font-size:1.8rem">—</span>
+                <span class="radial-unit">%</span>
+              </div>
+            </div>
+            <div>
+              <div id="shelf-km" style="font-size:1.2rem;font-weight:700;color:var(--cyan)"></div>
+              <div class="label">km remaining</div>
+              <div id="shelf-date" style="font-size:0.75rem;color:var(--text-muted);margin-top:6px"></div>
+              <div id="wear-rate" style="font-size:0.72rem;color:var(--text-muted);margin-top:4px"></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- DOT Info -->
+        <div class="card animate-slide-up anim-delay-2">
+          <div class="label" style="margin-bottom:var(--space-md)">DOT Code Analysis</div>
+          <div id="dot-info" style="display:flex;flex-direction:column;gap:6px"></div>
+        </div>
+
+      </div>
+
+      <!-- Center: 3D Digital Twin -->
+      <div class="results-twin animate-slide-up anim-delay-1">
+        <div class="card" style="padding:0;overflow:hidden">
+          <div style="padding:var(--space-md) var(--space-lg);border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between">
+            <div>
+              <div class="card-title">🔵 Digital Twin — 3D Tire Analysis</div>
+              <div style="font-size:0.72rem;color:var(--text-muted)">Drag to rotate • Scroll to zoom</div>
+            </div>
+            <div style="display:flex;gap:6px" id="zone-tabs">
+              <button class="zone-tab active" onclick="focusZone('default')">All</button>
+              <button class="zone-tab" onclick="focusZone('tread')">Tread</button>
+              <button class="zone-tab" onclick="focusZone('sidewall')">Sidewall</button>
+              <button class="zone-tab" onclick="focusZone('shoulder')">Shoulder</button>
+            </div>
+          </div>
+          <canvas id="twin-canvas" style="width:100%;height:420px;display:block"></canvas>
+          <div style="padding:var(--space-md);border-top:1px solid var(--border);display:flex;gap:12px;flex-wrap:wrap;font-size:0.72rem">
+            <div style="display:flex;align-items:center;gap:6px"><div style="width:12px;height:12px;border-radius:2px;background:#00e676"></div>Healthy</div>
+            <div style="display:flex;align-items:center;gap:6px"><div style="width:12px;height:12px;border-radius:2px;background:#ffcc00"></div>Caution</div>
+            <div style="display:flex;align-items:center;gap:6px"><div style="width:12px;height:12px;border-radius:2px;background:#ff6b00"></div>Degraded</div>
+            <div style="display:flex;align-items:center;gap:6px"><div style="width:12px;height:12px;border-radius:2px;background:#ff1744"></div>Critical</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Right: Feature Vector + Actions -->
+      <div style="display:flex;flex-direction:column;gap:var(--space-md)">
+
+        <!-- Risk Triggers -->
+        <div class="card animate-slide-left">
+          <div class="label" style="margin-bottom:var(--space-md)">Risk Triggers</div>
+          <div id="risk-triggers" style="display:flex;flex-direction:column;gap:6px"></div>
+        </div>
+
+        <!-- 16-Feature Vector -->
+        <div class="card animate-slide-left anim-delay-1">
+          <div class="label" style="margin-bottom:var(--space-md);display:flex;align-items:center;justify-content:space-between">
+            <span>16-Feature Vector</span>
+            <button onclick="toggleFeatures()" style="background:none;border:none;color:var(--cyan);font-size:0.75rem;cursor:pointer" id="feat-toggle">▼ Collapse</button>
+          </div>
+          <div id="feature-vector" style="display:flex;flex-direction:column"></div>
+        </div>
+
+        <!-- Recommended Actions -->
+        <div class="card animate-slide-left anim-delay-2">
+          <div class="label" style="margin-bottom:var(--space-md)">Recommended Actions</div>
+          <div id="recommendations" style="display:flex;flex-direction:column;gap:8px"></div>
+          <div style="margin-top:var(--space-md);display:flex;gap:8px;flex-wrap:wrap">
+            <button class="btn btn-primary btn-sm" onclick="navigate('inspect')">🔬 New Inspection</button>
+            <button class="btn btn-ghost btn-sm" onclick="navigate('fleet')">🚛 Fleet View</button>
+            <button class="btn btn-ghost btn-sm" onclick="exportResult()">📋 Export</button>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ─── Load result from sessionStorage ─────────────────────────
+const resultData = JSON.parse(sessionStorage.getItem('tv_result') || 'null');
+const inspData   = JSON.parse(sessionStorage.getItem('tv_inspection') || 'null');
+
+if (!resultData) {
+  // Demo mode — generate sample result
+  generateDemoResult();
+} else {
+  simulateAnalysisSteps(resultData);
+}
+
+async function simulateAnalysisSteps(result) {
+  const steps = [
+    'Extracting feature vector...',
+    'Running risk classification engine...',
+    'Computing reliability score...',
+    'Calculating shelf life...',
+    'Rendering Digital Twin...',
+    'Analysis complete ✓',
+  ];
+  const statusEl = document.getElementById('analysis-status');
+  const stepsEl  = document.getElementById('analysis-steps');
+  const done = [];
+
+  for (let i = 0; i < steps.length; i++) {
+    statusEl.textContent = steps[i];
+    done.push(`<div style="color:var(--safe)">✓ ${steps[i]}</div>`);
+    stepsEl.innerHTML = done.join('');
+    await sleep(300 + Math.random() * 300);
+  }
+
+  await sleep(200);
+  showResults(result);
+}
+
+async function generateDemoResult() {
+  // Sample result for demo/direct page access
+  const mileage = 52000;
+  const tread   = Math.max(.5, 24 - (mileage/1000)*0.076);
+  const pct     = mileage / 250000;
+  const result  = {
+    features: {
+      tread_depth_mm: Math.round(tread*100)/100,
+      tread_wear_variance: Math.min(.5, pct*.5),
+      shoulder_wear_idx: Math.min(.5, pct*.45),
+      sidewall_crack_density: Math.min(.4, pct*.25),
+      bulge_detected: false, bulge_confidence: 0.05,
+      ozone_aging_score: .18,
+      cut_puncture_count: 0,
+      tire_age_months: 24,
+      retread_flag: false,
+      heat_damage_idx: .12,
+      rim_corrosion_lvl: .08,
+      valve_integrity: .92,
+      tire_position: 'drive',
+      mileage_since_last: mileage,
+      capture_light_quality: .78,
+      ambient_temp_c: 28,
+      exposed_cords: false,
+      sidewall_crack_mm: 8,
+    },
+    dot_info: { week:30, year:2024, ageMonths:24, raw:'3024', mfg_date:'2024-07-22' },
+    risk_flag: 'MONITOR',
+    risk_triggers: ['Tread wear variance: 0.32 (threshold 0.30)', 'Mileage: 52,000 km — approaching review threshold'],
+    reliability_score: 68,
+    shelf_life_pct: 42,
+    remaining_km: 105000,
+    position: 'drive',
+    totalTimeMs: 28000,
+  };
+  await simulateAnalysisSteps(result);
+}
+
+function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+// ─── Show Results ─────────────────────────────────────────────
+let _twin = null;
+
+async function showResults(result) {
+  document.getElementById('results-loading').style.display = 'none';
+  document.getElementById('results-content').style.display = '';
+
+  const f   = result.features || {};
+  const dot = result.dot_info || {};
+
+  // ── Risk Banner ─────────────────────────────────────────
+  const riskMap = {
+    'SAFE':           { cls:'safe',     icon:'✅', label:'SAFE — No Major Risk' },
+    'MONITOR':        { cls:'monitor',  icon:'👁️', label:'MONITOR — Follow-up Required' },
+    'CRITICAL':       { cls:'critical', icon:'⚠️', label:'CRITICAL — Replace Within 48h' },
+    'DO-NOT-OPERATE': { cls:'dno',      icon:'🚫', label:'DO NOT OPERATE — Immediate Risk' },
+  };
+  const riskInfo = riskMap[result.risk_flag] || riskMap['SAFE'];
+  const banner   = document.getElementById('risk-banner');
+  banner.className = `risk-banner ${riskInfo.cls}`;
+  document.getElementById('risk-icon').textContent         = riskInfo.icon;
+  document.getElementById('risk-flag-label').textContent   = riskInfo.label;
+  document.getElementById('risk-action-label').textContent = getRiskAction(result.risk_flag);
+  document.getElementById('total-time').textContent        = result.totalTimeMs
+    ? `Analysis: ${(result.totalTimeMs/1000).toFixed(1)}s` : '';
+
+  // ── Reliability Score ────────────────────────────────────
+  const score = result.reliability_score || 0;
+  const scoreColor = score>=80?'#00e676':score>=60?'#00d4ff':score>=40?'#ffcc00':score>=20?'#ff6b00':'#ff1744';
+  const arc = document.getElementById('reliability-arc');
+  arc.style.stroke = scoreColor;
+  setTimeout(() => { arc.style.strokeDashoffset = 314 * (1 - score/100); }, 200);
+  document.getElementById('reliability-val').textContent   = score;
+  document.getElementById('reliability-val').style.color   = scoreColor;
+  document.getElementById('reliability-grade').textContent = scoreToGrade(score);
+  document.getElementById('reliability-grade').style.color = scoreColor;
+  document.getElementById('reliability-desc').textContent  = scoreDesc(score);
+
+  // Score components (simulated from features)
+  const comps = [
+    { label:'Tread',   score: Math.round(40*(f.tread_depth_mm||8)/24),        max:40 },
+    { label:'Cracks',  score: Math.round(20*(1-(f.sidewall_crack_density||0))),max:20 },
+    { label:'Wear',    score: Math.round(15*(1-(f.tread_wear_variance||0)/.8)),max:15 },
+    { label:'Heat',    score: Math.round(10*(1-(f.heat_damage_idx||0))),       max:10 },
+    { label:'Age',     score: Math.round(10*(1-(f.tire_age_months||0)/120)),   max:10 },
+    { label:'Valve',   score: Math.round(5*(f.valve_integrity||.9)),           max:5 },
+  ].map(c=>({...c,score:Math.max(0,Math.min(c.max,c.score))}));
+
+  document.getElementById('reliability-components').innerHTML = comps.map(c => {
+    const pct = (c.score / c.max) * 100;
+    const color = pct>=70?'#00e676':pct>=40?'#ffcc00':'#ff6b00';
+    return `
+      <div style="display:flex;align-items:center;gap:8px;font-size:0.72rem">
+        <span style="width:36px;color:var(--text-muted)">${c.label}</span>
+        <div style="flex:1;height:4px;background:var(--bg-surface);border-radius:2px;overflow:hidden">
+          <div style="height:100%;width:${pct}%;background:${color};border-radius:2px;transition:width 1s ease"></div>
+        </div>
+        <span style="width:24px;text-align:right;font-weight:700;color:${color}">${c.score}</span>
+      </div>
+    `;
+  }).join('');
+
+  // ── Shelf Life ───────────────────────────────────────────
+  const sl = result.shelf_life_pct || 0;
+  const slColor = sl>=60?'#00e676':sl>=35?'#ffcc00':sl>=15?'#ff6b00':'#ff1744';
+  const sArc = document.getElementById('shelf-arc');
+  sArc.style.stroke = slColor;
+  setTimeout(() => { sArc.style.strokeDashoffset = 314 * (1 - sl/100); }, 400);
+  document.getElementById('shelf-val').textContent  = sl;
+  document.getElementById('shelf-val').style.color  = slColor;
+  document.getElementById('shelf-km').textContent   = (result.remaining_km||0).toLocaleString();
+  document.getElementById('shelf-date').textContent = result.replacement_date
+    ? `Est. replacement: ${result.replacement_date}` : '';
+  document.getElementById('wear-rate').textContent  = result.wear_rate
+    ? `Wear rate: ${result.wear_rate} mm/1000km` : '';
+
+  // ── DOT Info ─────────────────────────────────────────────
+  const dotRows = [
+    { label: 'DOT Code',       value: dot.raw || '—' },
+    { label: 'Mfg. Week/Year', value: dot.week && dot.year ? `Week ${dot.week}, ${dot.year}` : '—' },
+    { label: 'Mfg. Date',      value: dot.mfg_date || dot.mfgDate || '—' },
+    { label: 'Tire Age',       value: dot.ageMonths ? `${Math.floor(dot.ageMonths/12)}y ${Math.floor(dot.ageMonths%12)}mo` : '—' },
+    { label: 'Retread',        value: f.retread_flag ? '⚠️ Yes — Retreaded' : '✅ Original' },
+  ];
+  document.getElementById('dot-info').innerHTML = dotRows.map(r => `
+    <div class="metric-row">
+      <span class="metric-key">${r.label}</span>
+      <span class="metric-value">${r.value}</span>
+    </div>
+  `).join('');
+
+  // ── Risk Triggers ────────────────────────────────────────
+  document.getElementById('risk-triggers').innerHTML = (result.risk_triggers || []).map(t => `
+    <div style="display:flex;align-items:flex-start;gap:6px;font-size:0.8rem;padding:4px 0;border-bottom:1px solid var(--border)">
+      <span style="flex-shrink:0;color:${riskInfo.cls==='dno'?'#ff1744':riskInfo.cls==='critical'?'#ff6b00':riskInfo.cls==='monitor'?'#ffcc00':'#00e676'}">•</span>
+      <span>${t}</span>
+    </div>
+  `).join('') || '<div style="color:var(--safe);font-size:0.8rem">✅ No critical triggers</div>';
+
+  // ── Feature Vector ───────────────────────────────────────
+  const featDefs = [
+    { key:'tread_depth_mm',        label:'F1 tread_depth_mm',       unit:'mm',  max:24 },
+    { key:'tread_wear_variance',   label:'F2 wear_variance',         unit:'',    max:1 },
+    { key:'shoulder_wear_idx',     label:'F3 shoulder_wear_idx',     unit:'',    max:1 },
+    { key:'sidewall_crack_density',label:'F4 crack_density',         unit:'',    max:1 },
+    { key:'bulge_confidence',      label:'F5 bulge_confidence',      unit:'',    max:1 },
+    { key:'ozone_aging_score',     label:'F6 ozone_aging',           unit:'',    max:1 },
+    { key:'cut_puncture_count',    label:'F7 cut_puncture_count',    unit:'',    max:5 },
+    { key:'tire_age_months',       label:'F8 tire_age_months',       unit:'mo',  max:120 },
+    { key:'heat_damage_idx',       label:'F10 heat_damage_idx',      unit:'',    max:1 },
+    { key:'rim_corrosion_lvl',     label:'F11 rim_corrosion_lvl',    unit:'',    max:1 },
+    { key:'valve_integrity',       label:'F12 valve_integrity',      unit:'',    max:1, inv:true },
+    { key:'mileage_since_last',    label:'F14 mileage_since_last',   unit:'km',  max:300000 },
+    { key:'capture_light_quality', label:'F15 light_quality',        unit:'',    max:1, inv:true },
+    { key:'ambient_temp_c',        label:'F16 ambient_temp_c',       unit:'°C',  max:50 },
+  ];
+
+  document.getElementById('feature-vector').innerHTML = featDefs.map(fd => {
+    const val = f[fd.key] ?? 0;
+    const pct = Math.min(100, (val / fd.max) * 100);
+    const danger = !fd.inv && pct > 70;
+    const color  = fd.inv ? (pct<60?'#00e676':'#ffcc00') : (danger?'#ff6b00':'#00e676');
+    const display = typeof val === 'boolean' ? (val?'true':'false') : (typeof val==='number'?val.toFixed(fd.unit==='km'?0:2):val);
+    return `
+      <div class="feature-row">
+        <span class="feature-key">${fd.label}</span>
+        <div class="feature-bar"><div class="feature-bar-fill" style="width:${pct}%;background:${color}"></div></div>
+        <span class="feature-value" style="color:${color}">${display}${fd.unit?'<span style="font-size:.6rem;color:var(--text-muted)">'+fd.unit+'</span>':''}</span>
+      </div>
+    `;
+  }).join('');
+
+  // ── Recommendations ──────────────────────────────────────
+  const recs = [
+    { icon: riskInfo.icon, text: getRiskAction(result.risk_flag), urgent: result.risk_flag !== 'SAFE' },
+  ];
+  if (result.remaining_km > 0)
+    recs.push({ icon: '📅', text: `Plan replacement in ~${(result.remaining_km/300).toFixed(0)} days at fleet avg rate`, urgent: false });
+  if ((f.heat_damage_idx||0) > 0.3)
+    recs.push({ icon: '🌡️', text: 'Check inflation pressure — heat stress detected', urgent: false });
+  if ((f.tread_wear_variance||0) > 0.2)
+    recs.push({ icon: '🔄', text: 'Consider tire rotation to equalize wear', urgent: false });
+
+  document.getElementById('recommendations').innerHTML = recs.map(r => `
+    <div class="action-card" style="${r.urgent ? `border-color:var(--${riskInfo.cls==='dno'?'dno':riskInfo.cls==='critical'?'critical':'monitor'})` : ''}">
+      <div style="display:flex;gap:8px;align-items:flex-start">
+        <span style="font-size:1.1rem">${r.icon}</span>
+        <span style="font-size:0.83rem">${r.text}</span>
+      </div>
+    </div>
+  `).join('');
+
+  // ── 3D Digital Twin ──────────────────────────────────────
+  await initDigitalTwin(f, result.risk_flag);
+}
+
+// ─── Digital Twin ─────────────────────────────────────────────
+async function initDigitalTwin(features, riskFlag) {
+  // Load Three.js
+  if (!window.THREE) {
+    await loadScript('https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js');
+  }
+  const T = window.THREE;
+  const canvas = document.getElementById('twin-canvas');
+  if (!canvas) return;
+
+  const W = canvas.clientWidth || 600, H = 420;
+  const scene    = new T.Scene();
+  scene.background = new T.Color(0x0a0c14);
+  scene.fog = new T.FogExp2(0x0a0c14, 0.06);
+
+  const camera = new T.PerspectiveCamera(45, W/H, 0.1, 100);
+  camera.position.set(3.2, 1.4, 3.2);
+  camera.lookAt(0,0,0);
+
+  const renderer = new T.WebGLRenderer({ canvas, antialias: true });
+  renderer.setSize(W, H);
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+  renderer.shadowMap.enabled = true;
+
+  // Lighting
+  scene.add(new T.AmbientLight(0x334466, 0.9));
+  const key = new T.DirectionalLight(0x00d4ff, 1.3);
+  key.position.set(5,8,5); key.castShadow = true; scene.add(key);
+  scene.add(new T.DirectionalLight(0xffffff, 0.4).position.set(-3,2,-3).done?.() || (() => { const l=new T.DirectionalLight(0xffffff,.4); l.position.set(-3,2,-3); scene.add(l); return null; })());
+  const rim = new T.PointLight(0x00d4ff, 0.7, 12); rim.position.set(-2,-1,2); scene.add(rim);
+
+  // ── Tire geometry ─────────────────────────────────────────
+  const tireGroup = new T.Group();
+
+  // Tread depth severity
+  const wearSeverity = 1 - Math.min(1, (features.tread_depth_mm||8) / 24);
+  const crackSeverity= features.sidewall_crack_density || 0;
+  const heatSeverity = features.heat_damage_idx || 0;
+
+  function colorFromSeverity(s, rf) {
+    if (rf === 'DO-NOT-OPERATE' || s > 0.8) return new T.Color('#ff1744');
+    if (rf === 'CRITICAL'       || s > 0.6) return new T.Color('#ff6b00');
+    if (s > 0.35) return new T.Color('#ffcc00');
+    return new T.Color('#00e676');
+  }
+
+  // Main tire body
+  const torusGeo = new T.TorusGeometry(1.0, 0.38, 48, 120);
+  const tireColor = colorFromSeverity(Math.max(wearSeverity, crackSeverity, heatSeverity), riskFlag);
+  const tireMat   = new T.MeshStandardMaterial({
+    color:     new T.Color(0x1c1c1c),
+    roughness: 0.92, metalness: 0.01
+  });
+  const tireMesh = new T.Mesh(torusGeo, tireMat);
+  tireMesh.rotation.x = Math.PI/2;
+  tireMesh.castShadow = tireMesh.receiveShadow = true;
+  tireGroup.add(tireMesh);
+
+  // Zone heat overlays
+  const zoneData = [
+    { r:1.02, t:0.40, severity: wearSeverity,   alpha: 0.55 },  // tread
+    { r:0.89, t:0.28, severity: crackSeverity,  alpha: 0.45 },  // sidewall
+    { r:0.95, t:0.35, severity: heatSeverity,   alpha: 0.40 },  // shoulder
+  ];
+  zoneData.forEach(z => {
+    if (z.severity < 0.1) return;
+    const color = colorFromSeverity(z.severity, riskFlag);
+    const mat = new T.MeshStandardMaterial({
+      color, transparent:true, opacity: z.severity * z.alpha,
+      emissive: color, emissiveIntensity: z.severity * 0.8,
+    });
+    const mesh = new T.Mesh(new T.TorusGeometry(z.r, z.t, 24, 80), mat);
+    mesh.rotation.x = Math.PI/2;
+    tireGroup.add(mesh);
+  });
+
+  // Rim
+  const rimMat = new T.MeshStandardMaterial({ color:0x888fa0, roughness:.3, metalness:.8 });
+  tireGroup.add(Object.assign(new T.Mesh(new T.CylinderGeometry(.62,.62,.36,48), rimMat), {castShadow:true}));
+  for (let i=0;i<5;i++) {
+    const s = new T.Mesh(new T.BoxGeometry(.08,.34,.55), rimMat);
+    s.rotation.y = (i/5)*Math.PI*2; tireGroup.add(s);
+  }
+
+  // Valve
+  const vMat = new T.MeshStandardMaterial({color:0x444,metalness:.9,roughness:.2});
+  const valve = new T.Mesh(new T.CylinderGeometry(.015,.015,.12,8), vMat);
+  valve.position.set(.63,0,0); tireGroup.add(valve);
+
+  // Damage markers
+  if (features.bulge_detected || (features.bulge_confidence||0) > 0.7) {
+    addMarker(tireGroup, T, [0,1.1,0.38], '#ff1744', 1.8);
+  }
+  if ((features.cut_puncture_count||0) >= 1) {
+    addMarker(tireGroup, T, [1.05,0,0.38], '#ff6b00', 1.2);
+  }
+  if (crackSeverity > 0.4) {
+    addMarker(tireGroup, T, [-1.0,0,0.3], '#ffcc00', 1.0);
+  }
+
+  scene.add(tireGroup);
+
+  // Ground
+  const plane = new T.Mesh(
+    new T.PlaneGeometry(12,12),
+    new T.MeshStandardMaterial({color:0x111420,roughness:.9,metalness:.1,transparent:true,opacity:.3})
+  );
+  plane.rotation.x = -Math.PI/2; plane.position.y = -1.6; plane.receiveShadow = true; scene.add(plane);
+  scene.add(new T.GridHelper(10,20,0x1a2040,0x111a30).position.set(0,-1.6,0).done?.() || (() => { const g=new T.GridHelper(10,20,0x1a2040,0x111a30); g.position.y=-1.6; scene.add(g); return null; })());
+
+  function addMarker(group, T, pos, color, intensity) {
+    const mat = new T.MeshStandardMaterial({
+      color:new T.Color(color), emissive:new T.Color(color),
+      emissiveIntensity:intensity, transparent:true, opacity:.9
+    });
+    const m = new T.Mesh(new T.SphereGeometry(.045,8,8), mat);
+    m.position.set(...pos); group.add(m);
+  }
+
+  // Orbit controls
+  let isDrag=false, lastMX=0, lastMY=0;
+  canvas.addEventListener('mousedown',  e=>{isDrag=true;lastMX=e.clientX;lastMY=e.clientY;});
+  canvas.addEventListener('mousemove',  e=>{
+    if(!isDrag)return;
+    const dx=(e.clientX-lastMX)*.012, dy=(e.clientY-lastMY)*.012;
+    const r=camera.position.length();
+    const theta=Math.atan2(camera.position.x,camera.position.z)+dx;
+    const phi=Math.max(.1,Math.min(Math.PI-.1,Math.acos(camera.position.y/r)+dy));
+    camera.position.set(r*Math.sin(phi)*Math.sin(theta),r*Math.cos(phi),r*Math.sin(phi)*Math.cos(theta));
+    camera.lookAt(0,0,0);
+    lastMX=e.clientX;lastMY=e.clientY;
+  });
+  canvas.addEventListener('mouseup',()=>isDrag=false);
+  canvas.addEventListener('mouseleave',()=>isDrag=false);
+  canvas.addEventListener('touchstart',e=>{isDrag=true;lastMX=e.touches[0].clientX;lastMY=e.touches[0].clientY;},{passive:true});
+  canvas.addEventListener('touchmove', e=>{
+    const dx=(e.touches[0].clientX-lastMX)*.012, dy=(e.touches[0].clientY-lastMY)*.012;
+    const r=camera.position.length();
+    const theta=Math.atan2(camera.position.x,camera.position.z)+dx;
+    const phi=Math.max(.1,Math.min(Math.PI-.1,Math.acos(camera.position.y/r)+dy));
+    camera.position.set(r*Math.sin(phi)*Math.sin(theta),r*Math.cos(phi),r*Math.sin(phi)*Math.cos(theta));
+    camera.lookAt(0,0,0);
+    lastMX=e.touches[0].clientX;lastMY=e.touches[0].clientY;
+  },{passive:true});
+  canvas.addEventListener('touchend',()=>isDrag=false,{passive:true});
+  canvas.addEventListener('wheel',e=>{
+    const d=Math.max(2,Math.min(8,camera.position.length()+e.deltaY*.005));
+    camera.position.normalize().multiplyScalar(d);
+    e.preventDefault();
+  },{passive:false});
+
+  // Resize
+  const ro = new ResizeObserver(() => {
+    const w=canvas.clientWidth, h=canvas.clientHeight||420;
+    camera.aspect=w/h; camera.updateProjectionMatrix(); renderer.setSize(w,h);
+  });
+  ro.observe(canvas);
+
+  // Animation
+  let markers = tireGroup.children.filter(c=>c.geometry?.type==='SphereGeometry');
+  function animate() {
+    requestAnimationFrame(animate);
+    const t=Date.now()/1000;
+    tireGroup.rotation.y += 0.004;
+    markers.forEach((m,i)=>{ m.scale.setScalar(1+.25*Math.sin(t*3+i)); if(m.material) m.material.emissiveIntensity=.8+.7*Math.sin(t*2+i); });
+    renderer.render(scene, camera);
+  }
+  animate();
+
+  // Zone focus tabs
+  window._twinCamera = camera;
+  window._twinGroup  = tireGroup;
+}
+
+window.focusZone = function(zone) {
+  document.querySelectorAll('.zone-tab').forEach(b=>b.classList.remove('active'));
+  event.target.classList.add('active');
+  if (!window._twinCamera) return;
+  const positions = {
+    default:  [3.2,1.4,3.2],
+    tread:    [0,3.5,2],
+    sidewall: [3.5,.5,1.5],
+    shoulder: [2.5,1.8,2.5],
+  };
+  const [x,y,z] = positions[zone] || positions.default;
+  window._twinCamera.position.set(x,y,z);
+  window._twinCamera.lookAt(0,0,0);
+};
+
+// ─── Helpers ──────────────────────────────────────────────────
+function scoreToGrade(s) { return s>=85?'A':s>=70?'B':s>=55?'C':s>=40?'D':'F'; }
+function scoreDesc(s)     { return s>=80?'Excellent condition — high reliability':s>=60?'Good condition — normal monitoring':s>=40?'Fair — increased monitoring recommended':s>=20?'Poor — replacement planning required':'Critical — immediate action'; }
+function getRiskAction(f) {
+  const a = {'SAFE':'Continue normal operation — no immediate action required','MONITOR':'Schedule follow-up inspection within 2–4 weeks','CRITICAL':'Replace tire within 48 hours or 100 miles','DO-NOT-OPERATE':'IMMEDIATE REPLACEMENT — Do not operate this vehicle'};
+  return a[f]||a['SAFE'];
+}
+let featExpanded = true;
+function toggleFeatures() {
+  featExpanded = !featExpanded;
+  document.getElementById('feature-vector').style.display = featExpanded ? '' : 'none';
+  document.getElementById('feat-toggle').textContent = featExpanded ? '▼ Collapse' : '▶ Expand';
+}
+function exportResult() {
+  const r = JSON.parse(sessionStorage.getItem('tv_result')||'{}');
+  const blob = new Blob([JSON.stringify(r,null,2)], {type:'application/json'});
+  const a=document.createElement('a'); a.href=URL.createObjectURL(blob);
+  a.download=`tire-inspection-${new Date().toISOString().slice(0,10)}.json`; a.click();
+}
+function loadScript(src) {
+  return new Promise((res,rej)=>{
+    if(document.querySelector(`script[src="${src}"]`)){res();return;}
+    const s=document.createElement('script');s.src=src;s.onload=res;s.onerror=rej;document.head.appendChild(s);
+  });
+}
+function navigate(p){if(window.navigate)window.navigate(p);else window.location.hash=p;}
+</script>
+</main>

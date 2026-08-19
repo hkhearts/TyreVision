@@ -1,0 +1,161 @@
+<!-- Settings Page -->
+<main>
+<link rel="stylesheet" href="/css/main.css"/>
+<style>
+.settings-section { background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: var(--space-xl); margin-bottom: var(--space-lg); }
+.settings-row { display: flex; align-items: center; justify-content: space-between; padding: 12px 0; border-bottom: 1px solid var(--border); }
+.settings-row:last-child { border-bottom: none; }
+.toggle { position:relative; width:44px; height:24px; }
+.toggle input { opacity:0; width:0; height:0; }
+.toggle-slider { position:absolute; inset:0; background:var(--bg-surface); border-radius:12px; transition:.3s; border:1px solid var(--border); cursor:pointer; }
+.toggle-slider::before { content:''; position:absolute; width:18px; height:18px; left:2px; bottom:2px; background:var(--text-muted); border-radius:50%; transition:.3s; }
+input:checked + .toggle-slider { background:var(--cyan); border-color:var(--cyan); }
+input:checked + .toggle-slider::before { transform:translateX(20px); background:#fff; }
+</style>
+
+<div style="max-width:700px">
+  <h1 style="margin-bottom:var(--space-xl)">⚙️ Settings</h1>
+
+  <!-- AI Engine -->
+  <div class="settings-section animate-slide-up">
+    <h3 style="margin-bottom:var(--space-md)">🧠 AI Engine</h3>
+    <div class="settings-row">
+      <div><div style="font-weight:600">Server URL</div><div style="font-size:.8rem;color:var(--text-muted)">Flask inference server endpoint</div></div>
+      <input class="form-input" id="server-url" value="http://localhost:5000" style="width:220px"/>
+    </div>
+    <div class="settings-row">
+      <div><div style="font-weight:600">Analysis Mode</div><div style="font-size:.8rem;color:var(--text-muted)">Use server or client-side engine</div></div>
+      <select class="form-select" id="analysis-mode" style="width:180px">
+        <option value="auto">Auto (server → fallback)</option>
+        <option value="server">Server only</option>
+        <option value="client">Client-side only</option>
+      </select>
+    </div>
+    <div class="settings-row">
+      <div><div style="font-weight:600">Server Status</div><div id="server-status-detail" style="font-size:.8rem;color:var(--text-muted)">Checking...</div></div>
+      <button class="btn btn-ghost btn-sm" onclick="checkServer()">Test Connection</button>
+    </div>
+  </div>
+
+  <!-- Inspection -->
+  <div class="settings-section animate-slide-up anim-delay-1">
+    <h3 style="margin-bottom:var(--space-md)">🔬 Inspection Settings</h3>
+    <div class="settings-row">
+      <div><div style="font-weight:600">Auto-Capture</div><div style="font-size:.8rem;color:var(--text-muted)">Auto-capture when quality threshold met</div></div>
+      <label class="toggle"><input type="checkbox" id="auto-capture" checked/><span class="toggle-slider"></span></label>
+    </div>
+    <div class="settings-row">
+      <div><div style="font-weight:600">Quality Threshold</div><div style="font-size:.8rem;color:var(--text-muted)">Minimum quality score for capture</div></div>
+      <div style="display:flex;align-items:center;gap:8px">
+        <input type="range" id="quality-thresh" min="20" max="80" value="45" style="width:120px;accent-color:var(--cyan)"/>
+        <span id="quality-thresh-val" style="font-family:var(--font-mono);font-size:.85rem;width:32px">45%</span>
+      </div>
+    </div>
+    <div class="settings-row">
+      <div><div style="font-weight:600">DOT Code OCR</div><div style="font-size:.8rem;color:var(--text-muted)">Automatic OCR on DOT zone capture</div></div>
+      <label class="toggle"><input type="checkbox" id="dot-ocr" checked/><span class="toggle-slider"></span></label>
+    </div>
+    <div class="settings-row">
+      <div><div style="font-weight:600">Inspection Timer</div><div style="font-size:.8rem;color:var(--text-muted)">Target time limit (seconds)</div></div>
+      <select class="form-select" style="width:120px">
+        <option>60 seconds</option><option>90 seconds</option><option>120 seconds</option>
+      </select>
+    </div>
+  </div>
+
+  <!-- Fleet Thresholds -->
+  <div class="settings-section animate-slide-up anim-delay-2">
+    <h3 style="margin-bottom:var(--space-md)">🚛 Fleet Alert Thresholds</h3>
+    <div class="settings-row">
+      <div><div style="font-weight:600">MONITOR Tread Depth</div><div style="font-size:.8rem;color:var(--text-muted)">Alert when tread below this depth</div></div>
+      <div style="display:flex;align-items:center;gap:6px">
+        <input type="number" class="form-input" value="6" style="width:80px;text-align:center"/> mm
+      </div>
+    </div>
+    <div class="settings-row">
+      <div><div style="font-weight:600">CRITICAL Tread Depth</div><div style="font-size:.8rem;color:var(--text-muted)">Critical threshold</div></div>
+      <div style="display:flex;align-items:center;gap:6px">
+        <input type="number" class="form-input" value="4" style="width:80px;text-align:center"/> mm
+      </div>
+    </div>
+    <div class="settings-row">
+      <div><div style="font-weight:600">Max Tire Age</div><div style="font-size:.8rem;color:var(--text-muted)">Age limit before MONITOR alert</div></div>
+      <div style="display:flex;align-items:center;gap:6px">
+        <input type="number" class="form-input" value="72" style="width:80px;text-align:center"/> months
+      </div>
+    </div>
+  </div>
+
+  <!-- Data -->
+  <div class="settings-section animate-slide-up anim-delay-3">
+    <h3 style="margin-bottom:var(--space-md)">💾 Data Management</h3>
+    <div class="settings-row">
+      <div><div style="font-weight:600">Offline Storage</div><div style="font-size:.8rem;color:var(--text-muted)">IndexedDB local caching</div></div>
+      <label class="toggle"><input type="checkbox" checked/><span class="toggle-slider"></span></label>
+    </div>
+    <div class="settings-row">
+      <div><div style="font-weight:600">Background Sync</div><div style="font-size:.8rem;color:var(--text-muted)">Auto-sync inspections when online</div></div>
+      <label class="toggle"><input type="checkbox" checked/><span class="toggle-slider"></span></label>
+    </div>
+    <div class="settings-row">
+      <div><div style="font-weight:600">Storage Used</div><div id="storage-used" style="font-size:.8rem;color:var(--text-muted)">Calculating...</div></div>
+      <button class="btn btn-ghost btn-sm" onclick="clearData()">Clear Cache</button>
+    </div>
+  </div>
+
+  <!-- About -->
+  <div class="settings-section animate-slide-up anim-delay-4">
+    <h3 style="margin-bottom:var(--space-md)">ℹ️ About</h3>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:var(--space-md);font-size:.85rem">
+      <div><div class="label">Product</div><div style="font-weight:600;margin-top:4px">Tire Vision v1.0</div></div>
+      <div><div class="label">Build</div><div style="font-weight:600;margin-top:4px">2026.08 — Hackathon Demo</div></div>
+      <div><div class="label">Company</div><div style="font-weight:600;margin-top:4px">TrustGrid Technologies</div></div>
+      <div><div class="label">AI Engine</div><div style="font-weight:600;margin-top:4px">Rule-based CV + Mileage Model</div></div>
+    </div>
+    <div style="margin-top:var(--space-lg);padding:var(--space-md);background:var(--bg-surface);border-radius:var(--radius-md);font-size:.78rem;color:var(--text-muted)">
+      🏆 Built for hackathon demonstration. No external API keys required. Runs fully locally.<br/>
+      CV Engine • AR Camera Overlay • Three.js Digital Twin • PWA • Flask Inference Server
+    </div>
+  </div>
+
+  <button class="btn btn-primary" onclick="saveSettings()" style="width:100%">Save Settings</button>
+</div>
+
+<script>
+async function checkServer() {
+  const url = document.getElementById('server-url').value;
+  const el  = document.getElementById('server-status-detail');
+  el.textContent = 'Testing...';
+  try {
+    const r = await fetch(url+'/api/health', {signal:AbortSignal.timeout(3000)});
+    const d = await r.json();
+    el.textContent = `✅ Online — ${d.server} | PIL: ${d.pil}`;
+    el.style.color = 'var(--safe)';
+  } catch {
+    el.textContent = '❌ Offline — server not reachable';
+    el.style.color = 'var(--dno)';
+  }
+}
+checkServer();
+
+document.getElementById('quality-thresh').addEventListener('input', function() {
+  document.getElementById('quality-thresh-val').textContent = this.value + '%';
+});
+
+async function calcStorage() {
+  if ('storage' in navigator && 'estimate' in navigator.storage) {
+    const {usage,quota} = await navigator.storage.estimate();
+    document.getElementById('storage-used').textContent = `${(usage/1024/1024).toFixed(1)} MB / ${(quota/1024/1024/1024).toFixed(1)} GB`;
+  }
+}
+calcStorage();
+
+function clearData() {
+  indexedDB.deleteDatabase('TireVisionDB');
+  if (window.showToast) showToast('Cache cleared — reload to reinitialize', 'info');
+}
+function saveSettings() {
+  if (window.showToast) showToast('Settings saved', 'success');
+}
+</script>
+</main>

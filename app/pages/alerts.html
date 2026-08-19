@@ -1,0 +1,106 @@
+<!-- Alerts Page -->
+<main>
+<link rel="stylesheet" href="/css/main.css"/>
+<style>
+.alert-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: var(--space-lg);
+  display: flex;
+  gap: var(--space-md);
+  cursor: pointer;
+  transition: all 0.15s;
+  position: relative;
+  overflow: hidden;
+}
+.alert-card:hover { border-color: var(--border-bright); transform: translateX(4px); }
+.alert-card::before { content:''; position:absolute; left:0;top:0;bottom:0;width:4px; }
+.alert-card.dno::before      { background: var(--dno);      animation: pulse-glow 1s ease infinite; }
+.alert-card.critical::before { background: var(--critical); }
+.alert-card.monitor::before  { background: var(--monitor); }
+.alert-card.safe::before     { background: var(--safe); }
+.alert-card.driving::before  { background: var(--cyan); }
+</style>
+
+<div>
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:var(--space-xl)">
+    <div>
+      <h1 style="margin-bottom:4px">🚨 Alert Center</h1>
+      <p id="alert-subtitle">Loading alerts...</p>
+    </div>
+    <button class="btn btn-ghost btn-sm" onclick="dismissAll()">Dismiss All Resolved</button>
+  </div>
+
+  <div style="display:flex;flex-direction:column;gap:var(--space-md)" id="alerts-container">
+    <div class="skeleton" style="height:80px;border-radius:12px"></div>
+    <div class="skeleton" style="height:80px;border-radius:12px"></div>
+    <div class="skeleton" style="height:80px;border-radius:12px"></div>
+  </div>
+</div>
+
+<script>
+(async function init() {
+  let data=null;
+  try { const r=await fetch('http://localhost:5000/api/fleet',{signal:AbortSignal.timeout(3000)});if(r.ok)data=await r.json(); } catch {}
+  if(!data) { try{data=await(await fetch('/data/fleet-seed.json')).json();}catch{} }
+  const vehicles = data?.vehicles || [];
+
+  function posKey(p){const l=(p||'').toLowerCase();return l.includes('steer')||l.includes('front')?'steer':l.includes('trailer')?'trailer':'drive';}
+  function dotAge(d){const m=(d||'').match(/(\d{2})(\d{2})/);if(!m)return 36;const yr=parseInt(m[2])<=30?2000+parseInt(m[2]):1900+parseInt(m[2]);const mfg=new Date(yr,0,1);mfg.setDate(mfg.getDate()+(parseInt(m[1])-1)*7);return(Date.now()-mfg.getTime())/(1e3*60*60*24*30.44);}
+  function tireRisk(t){const BL={steer:150000,drive:250000,trailer:180000};const pct=(t.mileageOnTire||0)/BL[posKey(t.position)];const age=dotAge(t.dotCode);if(pct>=.95||age>108)return'DO-NOT-OPERATE';if(pct>=.82||age>96)return'CRITICAL';if(pct>=.65||age>72)return'MONITOR';return'SAFE';}
+  function ds(t){if(!t)return 100;return Math.round(Math.max(0,100-Math.min(1,(t.harshBrakeEvents||0)/30)*25-Math.min(1,(t.harshAccelEvents||0)/25)*20-Math.min(1,(t.corneringEvents||0)/20)*15-Math.min(1,(t.idleTimePct||0)/30)*10-Math.max(0,(10-(t.fuelEfficiency||10))/10)*10-Math.min(1,Math.max(0,((t.engineTempC||90)-95)/15))*20));}
+
+  const alerts = [];
+  vehicles.forEach(v => {
+    (v.tires||[]).forEach(t => {
+      const r = tireRisk(t);
+      if (r === 'SAFE') return;
+      const configs = {
+        'DO-NOT-OPERATE': {cls:'dno',icon:'🚫',title:`DO NOT OPERATE — ${v.make} ${v.model}`,desc:`Tire ${t.label} requires immediate replacement. Mileage: ${(t.mileageOnTire||0).toLocaleString()} km. Vehicle must be grounded.`,badge:'IMMEDIATE',priority:0},
+        'CRITICAL':       {cls:'critical',icon:'⚠️',title:`Critical Tire — ${v.make} ${v.model}`,desc:`Tire ${t.label} in critical condition. ${t.brand} — ${(t.mileageOnTire||0).toLocaleString()} km. Replace within 48 hours.`,badge:'48H',priority:1},
+        'MONITOR':        {cls:'monitor',icon:'👁️',title:`Monitor — ${v.make} ${v.model}`,desc:`Tire ${t.label} needs follow-up. ${t.brand} — ${(t.mileageOnTire||0).toLocaleString()} km. Schedule re-inspection.`,badge:'2 WKS',priority:2},
+      };
+      const cfg = configs[r];
+      if (!cfg) return;
+      alerts.push({...cfg, vehicle:v, tire:t, risk:r, time: r==='DO-NOT-OPERATE'?'NOW':r==='CRITICAL'?'<48h':'14 days'});
+    });
+
+    const score = ds(v.telematics);
+    if (score < 60) {
+      alerts.push({cls:'driving',icon:'🚗',title:`Aggressive Driving — ${v.driverName||v.make+' '+v.model}`,desc:`Driving score: ${score}/100. Harsh braking: ${v.telematics?.harshBrakeEvents||0} events. Cornering: ${v.telematics?.corneringEvents||0} events.`,badge:'ONGOING',priority:3,time:'Ongoing',vehicle:v,tire:null,risk:'DRIVING'});
+    }
+  });
+
+  alerts.sort((a,b)=>a.priority-b.priority);
+  document.getElementById('alert-subtitle').textContent = `${alerts.length} active alerts • ${alerts.filter(a=>a.risk==='DO-NOT-OPERATE').length} DNO • ${alerts.filter(a=>a.risk==='CRITICAL').length} critical`;
+
+  if (!alerts.length) {
+    document.getElementById('alerts-container').innerHTML = `<div style="text-align:center;padding:4rem;color:var(--text-muted)"><div style="font-size:4rem;margin-bottom:1rem">✅</div><h3>No Active Alerts</h3><p>All fleet tires are within safe operational parameters.</p></div>`;
+    return;
+  }
+
+  document.getElementById('alerts-container').innerHTML = alerts.map((a,i) => `
+    <div class="alert-card ${a.cls} animate-slide-up" style="animation-delay:${i*0.05}s">
+      <div style="font-size:1.8rem;padding-top:2px">${a.icon}</div>
+      <div style="flex:1">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px">
+          <span style="font-weight:700;font-size:0.95rem">${a.title}</span>
+          <span class="risk-badge ${a.cls}" style="font-size:0.62rem">${a.badge}</span>
+        </div>
+        <div style="font-size:0.82rem;color:var(--text-secondary);margin-bottom:6px">${a.desc}</div>
+        <div style="display:flex;align-items:center;gap:var(--space-md)">
+          <span style="font-size:0.72rem;color:var(--text-muted)">⏱️ Due: ${a.time}</span>
+          ${a.vehicle?`<span style="font-size:0.72rem;color:var(--text-muted)">📍 ${a.vehicle.regNo||''}</span>`:''}
+          ${a.tire?`<span style="font-size:0.72rem;color:var(--text-muted)">🔵 ${a.tire.position||''}</span>`:''}
+          <button class="btn btn-primary btn-sm" style="margin-left:auto" onclick="event.stopPropagation();navigate('inspect')">🔬 Inspect</button>
+        </div>
+      </div>
+    </div>
+  `).join('');
+})();
+
+function dismissAll() { if(window.showToast)showToast('Resolved alerts cleared','success'); }
+function navigate(p) { if(window.navigate)window.navigate(p); else window.location.hash=p; }
+</script>
+</main>

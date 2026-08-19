@@ -1,0 +1,182 @@
+<!-- Analytics Page -->
+<main>
+<link rel="stylesheet" href="/css/main.css"/>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<style>
+.analytics-grid { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-lg); }
+@media(max-width:800px){.analytics-grid{grid-template-columns:1fr;}}
+.chart-card { background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: var(--space-lg); }
+.chart-container { position: relative; height: 240px; }
+</style>
+
+<div>
+  <h1 style="margin-bottom:4px">📈 Fleet Analytics</h1>
+  <p style="margin-bottom:var(--space-xl)">Wear trends, risk distribution, and telematics insights.</p>
+
+  <!-- KPI Summary -->
+  <div class="kpi-grid" id="analytics-kpis" style="margin-bottom:var(--space-xl)">
+    <div class="skeleton" style="height:100px;border-radius:12px"></div>
+    <div class="skeleton" style="height:100px;border-radius:12px"></div>
+    <div class="skeleton" style="height:100px;border-radius:12px"></div>
+    <div class="skeleton" style="height:100px;border-radius:12px"></div>
+  </div>
+
+  <div class="analytics-grid">
+    <!-- Risk Distribution Doughnut -->
+    <div class="chart-card animate-slide-up">
+      <div class="card-title" style="margin-bottom:var(--space-md)">Risk Distribution</div>
+      <div class="chart-container"><canvas id="chart-risk"></canvas></div>
+      <div id="risk-legend" style="display:flex;flex-wrap:wrap;gap:8px;margin-top:var(--space-md)"></div>
+    </div>
+
+    <!-- Tread Wear by Position -->
+    <div class="chart-card animate-slide-up anim-delay-1">
+      <div class="card-title" style="margin-bottom:var(--space-md)">Tread Depth by Mileage — Position Cohort</div>
+      <div class="chart-container"><canvas id="chart-tread"></canvas></div>
+    </div>
+
+    <!-- Fleet Reliability Score Distribution -->
+    <div class="chart-card animate-slide-up anim-delay-2">
+      <div class="card-title" style="margin-bottom:var(--space-md)">Reliability Score Distribution</div>
+      <div class="chart-container"><canvas id="chart-reliability"></canvas></div>
+    </div>
+
+    <!-- Driving Behavior Radar -->
+    <div class="chart-card animate-slide-up anim-delay-3">
+      <div class="card-title" style="margin-bottom:var(--space-md)">Fleet Driving Behavior Analysis</div>
+      <div class="chart-container"><canvas id="chart-driving"></canvas></div>
+    </div>
+
+    <!-- Telematics Timeline -->
+    <div class="chart-card animate-slide-up anim-delay-2" style="grid-column:1/-1">
+      <div class="card-title" style="margin-bottom:var(--space-md)">Tire Mileage Distribution</div>
+      <div class="chart-container" style="height:200px"><canvas id="chart-mileage"></canvas></div>
+    </div>
+  </div>
+</div>
+
+<script>
+const CHART_DEFAULTS = {
+  plugins: { legend: { labels: { color: '#8b93b5', font: { family: 'Inter', size: 11 } } } },
+  scales:  {}
+};
+function scaleStyle() {
+  return { grid: { color: 'rgba(255,255,255,0.05)' }, ticks: { color: '#8b93b5', font: { size: 10 } } };
+}
+
+(async function init() {
+  let data=null;
+  try { const r=await fetch('http://localhost:5000/api/fleet',{signal:AbortSignal.timeout(3000)});if(r.ok)data=await r.json(); } catch {}
+  if(!data){try{data=await(await fetch('/data/fleet-seed.json')).json();}catch{}}
+  const vehicles = data?.vehicles||[];
+
+  function posKey(p){const l=(p||'').toLowerCase();return l.includes('steer')||l.includes('front')?'steer':l.includes('trailer')?'trailer':'drive';}
+  function dotAge(d){const m=(d||'').match(/(\d{2})(\d{2})/);if(!m)return 36;const yr=parseInt(m[2])<=30?2000+parseInt(m[2]):1900+parseInt(m[2]);const mfg=new Date(yr,0,1);mfg.setDate(mfg.getDate()+(parseInt(m[1])-1)*7);return(Date.now()-mfg.getTime())/(1e3*60*60*24*30.44);}
+  function tireRisk(t){const BL={steer:150000,drive:250000,trailer:180000};const pct=(t.mileageOnTire||0)/BL[posKey(t.position)];const age=dotAge(t.dotCode);if(pct>=.95||age>108)return'DO-NOT-OPERATE';if(pct>=.82||age>96)return'CRITICAL';if(pct>=.65||age>72)return'MONITOR';return'SAFE';}
+  function ds(t){if(!t)return 100;return Math.round(Math.max(0,100-Math.min(1,(t.harshBrakeEvents||0)/30)*25-Math.min(1,(t.harshAccelEvents||0)/25)*20-Math.min(1,(t.corneringEvents||0)/20)*15-Math.min(1,(t.idleTimePct||0)/30)*10-Math.max(0,(10-(t.fuelEfficiency||10))/10)*10-Math.min(1,Math.max(0,((t.engineTempC||90)-95)/15))*20));}
+
+  const allTires = vehicles.flatMap(v=>(v.tires||[]).map(t=>({...t,vehicle:v})));
+  const riskCounts = {SAFE:0,MONITOR:0,CRITICAL:0,'DO-NOT-OPERATE':0};
+  allTires.forEach(t=>{riskCounts[tireRisk(t)]++;});
+
+  // KPIs
+  const totalTires = allTires.length;
+  const avgDs = vehicles.length?Math.round(vehicles.reduce((s,v)=>s+ds(v.telematics),0)/vehicles.length):0;
+  const critCount = riskCounts['DO-NOT-OPERATE']+riskCounts['CRITICAL'];
+  const BL={steer:{wr:0.093},drive:{wr:0.076},trailer:{wr:0.061}};
+  const avgShelf = Math.round(allTires.reduce((s,t)=>{const pk=posKey(t.position);const ls={steer:150000,drive:250000,trailer:180000}[pk];const wearD=(t.mileageOnTire||0)/1000*BL[pk].wr;const tread=Math.max(0,({steer:19,drive:24,trailer:16}[pk])-wearD);return s+(tread/({steer:19,drive:24,trailer:16}[pk]))*100;},0)/Math.max(1,totalTires));
+
+  document.getElementById('analytics-kpis').innerHTML = `
+    <div class="kpi-card cyan animate-slide-up"><div class="kpi-label">Fleet Tires</div><div class="kpi-value text-cyan">${totalTires}</div><div class="kpi-trend">${vehicles.length} vehicles</div><div class="kpi-icon">🚛</div></div>
+    <div class="kpi-card ${critCount>0?'dno':'safe'} animate-slide-up anim-delay-1"><div class="kpi-label">Critical Issues</div><div class="kpi-value text-${critCount>0?'dno':'safe'}">${critCount}</div><div class="kpi-trend">Needs action</div><div class="kpi-icon">${critCount>0?'⚠️':'✅'}</div></div>
+    <div class="kpi-card monitor animate-slide-up anim-delay-2"><div class="kpi-label">Avg Shelf Life</div><div class="kpi-value text-monitor">${avgShelf}%</div><div class="kpi-trend">Fleet average</div><div class="kpi-icon">⏳</div></div>
+    <div class="kpi-card ${avgDs>=70?'safe':'monitor'} animate-slide-up anim-delay-3"><div class="kpi-label">Avg Drive Score</div><div class="kpi-value text-${avgDs>=70?'safe':'monitor'}">${avgDs}</div><div class="kpi-trend">Out of 100</div><div class="kpi-icon">🏎️</div></div>
+  `;
+
+  // ── Chart 1: Risk Distribution Doughnut ─────────────────
+  new Chart(document.getElementById('chart-risk'), {
+    type: 'doughnut',
+    data: {
+      labels: ['SAFE','MONITOR','CRITICAL','DNO'],
+      datasets: [{
+        data: [riskCounts.SAFE,riskCounts.MONITOR,riskCounts.CRITICAL,riskCounts['DO-NOT-OPERATE']],
+        backgroundColor: ['rgba(0,230,118,.8)','rgba(255,204,0,.8)','rgba(255,107,0,.8)','rgba(255,23,68,.8)'],
+        borderColor: ['#00e676','#ffcc00','#ff6b00','#ff1744'], borderWidth:2
+      }]
+    },
+    options: { ...CHART_DEFAULTS, cutout:'65%', plugins:{...CHART_DEFAULTS.plugins, tooltip:{callbacks:{label:c=>`${c.label}: ${c.raw} tires`}}} }
+  });
+  document.getElementById('risk-legend').innerHTML = [
+    {l:'SAFE',c:'#00e676'},{l:'MONITOR',c:'#ffcc00'},{l:'CRITICAL',c:'#ff6b00'},{l:'DNO',c:'#ff1744'}
+  ].map(({l,c})=>`<div style="display:flex;align-items:center;gap:4px;font-size:.72rem"><div style="width:10px;height:10px;border-radius:2px;background:${c}"></div>${l}: ${l==='SAFE'?riskCounts.SAFE:l==='MONITOR'?riskCounts.MONITOR:l==='CRITICAL'?riskCounts.CRITICAL:riskCounts['DO-NOT-OPERATE']}</div>`).join('');
+
+  // ── Chart 2: Tread Wear by Mileage ───────────────────────
+  const mileagePoints = [0,10000,25000,50000,75000,100000,150000,200000,250000];
+  const wearDatasets = [
+    { label:'Steer',   wr:0.093, nd:19, color:'#00d4ff' },
+    { label:'Drive',   wr:0.076, nd:24, color:'#00e676' },
+    { label:'Trailer', wr:0.061, nd:16, color:'#ffcc00' },
+  ].map(({label,wr,nd,color})=>({
+    label, borderColor:color, backgroundColor:color+'22', fill:true,
+    data: mileagePoints.map(km=>Math.max(0,nd-(km/1000)*wr).toFixed(1)),
+    tension:.4, pointRadius:3, pointBackgroundColor:color
+  }));
+  new Chart(document.getElementById('chart-tread'), {
+    type:'line',
+    data:{labels:mileagePoints.map(k=>k>=1000?`${k/1000}k km`:'0'),datasets:wearDatasets},
+    options:{...CHART_DEFAULTS,scales:{x:{...scaleStyle()},y:{...scaleStyle(),title:{display:true,text:'Tread Depth (mm)',color:'#8b93b5'},min:0,max:25}},plugins:{...CHART_DEFAULTS.plugins,annotation:{annotations:{minLine:{type:'line',yMin:5,yMax:5,borderColor:'#ff1744',borderWidth:1.5,borderDash:[5,5],label:{content:'Legal Min',display:true,position:'end',color:'#ff1744',font:{size:9}}}}}}}
+  });
+
+  // ── Chart 3: Reliability Score Histogram ─────────────────
+  const relBuckets = [0,0,0,0,0]; // 0-20,20-40,40-60,60-80,80-100
+  allTires.forEach(t=>{
+    const pk=posKey(t.position);
+    const nd={steer:19,drive:24,trailer:16}[pk];
+    const worn=(t.mileageOnTire||0)/1000*BL[pk].wr;
+    const tread=Math.max(0,nd-worn);
+    const score=Math.round(40*(tread/nd)+20+15+10*(1-Math.min(1,dotAge(t.dotCode)/120))+5);
+    const bi=Math.min(4,Math.floor(score/20));
+    relBuckets[bi]++;
+  });
+  new Chart(document.getElementById('chart-reliability'),{
+    type:'bar',
+    data:{labels:['0–20','20–40','40–60','60–80','80–100'],datasets:[{label:'Tires',data:relBuckets,backgroundColor:['#ff1744aa','#ff6b00aa','#ffcc00aa','#00d4ffaa','#00e676aa'],borderColor:['#ff1744','#ff6b00','#ffcc00','#00d4ff','#00e676'],borderWidth:2,borderRadius:6}]},
+    options:{...CHART_DEFAULTS,scales:{x:scaleStyle(),y:{...scaleStyle(),title:{display:true,text:'# Tires',color:'#8b93b5'}}}}
+  });
+
+  // ── Chart 4: Driving Behavior Radar ──────────────────────
+  const telem = vehicles.map(v=>v.telematics||{});
+  const avg=k=>telem.length?Math.round(telem.reduce((s,t)=>s+(t[k]||0),0)/telem.length*10)/10:0;
+  new Chart(document.getElementById('chart-driving'),{
+    type:'radar',
+    data:{
+      labels:['Braking','Accel','Cornering','Idle%','Fuel Eff','Eng Temp'],
+      datasets:[{
+        label:'Fleet Average',
+        data:[
+          Math.min(100,avg('harshBrakeEvents')*3),
+          Math.min(100,avg('harshAccelEvents')*4),
+          Math.min(100,avg('corneringEvents')*5),
+          avg('idleTimePct'),
+          Math.min(100,avg('fuelEfficiency')*10),
+          Math.min(100,Math.max(0,(avg('engineTempC')-80))*5),
+        ],
+        backgroundColor:'rgba(0,212,255,0.15)',
+        borderColor:'#00d4ff', borderWidth:2,
+        pointBackgroundColor:'#00d4ff', pointRadius:4,
+      }]
+    },
+    options:{...CHART_DEFAULTS,scales:{r:{grid:{color:'rgba(255,255,255,.06)'},ticks:{color:'#8b93b5',font:{size:9},backdropColor:'transparent'},pointLabels:{color:'#8b93b5',font:{size:10}},min:0,max:100}}}
+  });
+
+  // ── Chart 5: Mileage Distribution Bar ────────────────────
+  const milesLabels = vehicles.map(v=>`${v.make} ${v.model}`);
+  const milesData   = vehicles.map(v=>(v.mileageKm||0)/1000);
+  new Chart(document.getElementById('chart-mileage'),{
+    type:'bar',
+    data:{labels:milesLabels,datasets:[{label:'Mileage (×1000 km)',data:milesData,backgroundColor:'rgba(0,212,255,.4)',borderColor:'#00d4ff',borderWidth:2,borderRadius:8}]},
+    options:{...CHART_DEFAULTS,indexAxis:'y',scales:{x:{...scaleStyle(),title:{display:true,text:'km ×1000',color:'#8b93b5'}},y:scaleStyle()}}
+  });
+})();
+</script>
+</main>
