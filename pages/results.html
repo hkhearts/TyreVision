@@ -115,7 +115,8 @@
         <div id="risk-flag-label" style="font-size:1.3rem;font-weight:800;letter-spacing:.08em"></div>
         <div id="risk-action-label" style="font-size:0.85rem;opacity:.85;margin-top:2px;text-transform:none;letter-spacing:0;font-weight:400"></div>
       </div>
-      <div style="text-align:right">
+      <div style="text-align:right;display:flex;flex-direction:column;align-items:flex-end;gap:4px">
+        <div id="ml-score-badge" style="display:none;background:rgba(0,212,255,0.15);border:1px solid var(--cyan);border-radius:var(--radius-full);padding:4px 12px;font-size:0.75rem;font-weight:700;color:var(--cyan);font-family:var(--font-mono)"></div>
         <div id="total-time" style="font-size:0.75rem;opacity:.7"></div>
       </div>
     </div>
@@ -254,14 +255,26 @@ if (!resultData) {
 }
 
 async function simulateAnalysisSteps(result) {
-  const steps = [
+  const mlActive = result && result.ml_score !== null && result.ml_score !== undefined;
+  const steps = mlActive ? [
+    'Loading AI inference engine...',
+    'Running EfficientNet binary classifier...',
+    'Running grade prediction model...',
+    'Running ResNet18 ensemble model...',
+    'Computing ensemble prediction...',
+    'Mapping features from AI score...',
+    'Computing risk classification...',
+    'Rendering Digital Twin...',
+    'Analysis complete',
+  ] : [
     'Extracting feature vector...',
     'Running risk classification engine...',
     'Computing reliability score...',
     'Calculating shelf life...',
     'Rendering Digital Twin...',
-    'Analysis complete ✓',
+    'Analysis complete',
   ];
+
   const statusEl = document.getElementById('analysis-status');
   const stepsEl  = document.getElementById('analysis-steps');
   const done = [];
@@ -270,7 +283,7 @@ async function simulateAnalysisSteps(result) {
     statusEl.textContent = steps[i];
     done.push(`<div style="color:var(--safe)">✓ ${steps[i]}</div>`);
     stepsEl.innerHTML = done.join('');
-    await sleep(300 + Math.random() * 300);
+    await sleep(mlActive ? 200 + Math.random() * 200 : 300 + Math.random() * 300);
   }
 
   await sleep(200);
@@ -342,6 +355,18 @@ async function showResults(result) {
   document.getElementById('risk-action-label').textContent = getRiskAction(result.risk_flag);
   document.getElementById('total-time').textContent        = result.totalTimeMs
     ? `Analysis: ${(result.totalTimeMs/1000).toFixed(1)}s` : '';
+
+  // Show ML Score badge
+  const mlBadge = document.getElementById('ml-score-badge');
+  if (mlBadge && result.ml_score !== null && result.ml_score !== undefined) {
+    const grade = result.ml_score <= 5 ? 'Defective' : 'Good';
+    mlBadge.textContent = `AI Score: ${result.ml_score}/10 — ${grade}`;
+    mlBadge.style.display = 'block';
+    if (result.ml_score >= 7) mlBadge.style.borderColor = '#00e676';
+    else if (result.ml_score >= 5) mlBadge.style.borderColor = '#ffcc00';
+    else mlBadge.style.borderColor = '#ff6b00';
+    mlBadge.style.color = mlBadge.style.borderColor;
+  }
 
   // ── Reliability Score ────────────────────────────────────
   const score = result.reliability_score || 0;

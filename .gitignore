@@ -1,0 +1,36 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+*.egg-info/
+dist/
+build/
+*.egg
+.env
+.venv
+venv/
+env/
+
+# PyTorch model weights (large binary files - do NOT commit to git)
+Wheelyze-Tyre-Health-Detection/*.pth
+Wheelyze-Tyre-Health-Detection/__pycache__/
+
+# ONNX models (too large for Vercel free tier git-based deployment)
+# Use Vercel large file hosting or serve from CDN
+# models/*.onnx
+
+# Temporary files
+*.tmp
+*.log
+uploads/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+*.swp

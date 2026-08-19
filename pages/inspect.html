@@ -597,48 +597,71 @@ function showReview() {
 async function runAnalysis() {
   const btn = document.getElementById('analyze-btn');
   btn.disabled = true;
-  btn.innerHTML = '<span style="animation:spin 0.8s linear infinite;display:inline-block">⟳</span> Analyzing...';
+  btn.innerHTML = '<span style="animation:spin 0.8s linear infinite;display:inline-block">⟳</span> Running AI Analysis...';
 
   const inspectionData = {
-    mileageKm:   state.mileage,
-    position:    state.position,
-    dotCode:     state.dotCode,
+    mileageKm:    state.mileage,
+    position:     state.position,
+    dotCode:      state.dotCode,
     ambientTempC: state.ambientTemp,
-    vehicleId:   document.getElementById('sel-vehicle')?.value,
+    vehicleId:    document.getElementById('sel-vehicle')?.value,
   };
 
   // Store in sessionStorage for results page
   sessionStorage.setItem('tv_inspection', JSON.stringify({
-    captures:   Object.keys(state.captures),
+    captures:    Object.keys(state.captures),
     inspectionData,
-    startTime:  state.startTime,
+    startTime:   state.startTime,
     totalTimeMs: Date.now() - state.startTime,
   }));
 
-  // Try server analysis
+  // Try server analysis (ML-powered when Flask is running)
   let result = null;
   try {
-    if (state.captures.tread) {
-      const cap = state.captures.tread;
-      let imageB64 = '';
-      if (cap.url) {
-        const img = cap.img;
+    // Encode all zone captures as base64
+    const images = {};
+    for (const [zoneId, cap] of Object.entries(state.captures)) {
+      if (cap.url && cap.img) {
         const c = document.createElement('canvas');
-        c.width=640; c.height=480;
-        c.getContext('2d').drawImage(img, 0, 0, 640, 480);
-        imageB64 = c.toDataURL('image/jpeg', 0.85);
+        c.width = 640; c.height = 480;
+        c.getContext('2d').drawImage(cap.img, 0, 0, 640, 480);
+        images[zoneId] = [c.toDataURL('image/jpeg', 0.85)];
+      } else {
+        images[zoneId] = [''];
       }
-      const resp = await fetch('http://localhost:5000/api/analyze', {
-        method: 'POST',
-        headers: {'Content-Type':'application/json'},
-        body: JSON.stringify({ image: imageB64, mileage_km: state.mileage, position: state.position, dot_code: state.dotCode, ambient_temp_c: state.ambientTemp }),
-        signal: AbortSignal.timeout(10000)
-      });
-      if (resp.ok) result = await resp.json();
     }
-  } catch(e) { console.warn('Server analysis failed:', e); }
 
-  // Fallback: client-side
+    // Use relative URL when served by Flask, localhost when file://
+    const apiBase = window.location.protocol !== 'file:' ? '/api' : 'http://localhost:5000/api';
+
+    const resp = await fetch(`${apiBase}/analyze`, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({
+        images,
+        mileage_km:     state.mileage,
+        position:       state.position,
+        dot_code:       state.dotCode,
+        ambient_temp_c: state.ambientTemp,
+      }),
+      signal: AbortSignal.timeout(30000)
+    });
+
+    if (resp.ok) {
+      result = await resp.json();
+      // Show AI score toast if ML model was used
+      if (result.ml_score !== null && result.ml_score !== undefined) {
+        const grade = result.ml_score <= 5 ? 'Defective' : 'Good';
+        const toastType = result.ml_score >= 7 ? 'success'
+                        : result.ml_score >= 5 ? 'warning' : 'error';
+        showToast && showToast(`AI Score: ${result.ml_score}/10 — ${grade}`, toastType);
+      }
+    }
+  } catch(e) {
+    console.warn('[Inspect] Server unavailable, using client fallback:', e.message);
+  }
+
+  // Fallback: client-side heuristic
   if (!result) {
     result = buildClientResult(inspectionData);
   }
@@ -648,6 +671,7 @@ async function runAnalysis() {
   sessionStorage.setItem('tv_result', JSON.stringify(result));
   navigate('results');
 }
+
 
 function buildClientResult(data) {
   const { mileageKm=50000, position='drive' } = data;
