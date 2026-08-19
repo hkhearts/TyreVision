@@ -1,8 +1,6 @@
 flask==3.0.3
 flask-cors==4.0.1
 Pillow==10.3.0
-numpy==1.26.4
-torch
-torchvision
-easyocr
+numpy<2.0.0
+onnxruntime==1.18.0
 python-dotenv

@@ -35,28 +35,94 @@ except ImportError:
     reader = None
     print("[WARN] EasyOCR not available - using fallback OCR")
 
-# ─── ML Model Loading ────────────────────────────────────────────────────────
+# ─── ML Model Loading (ONNX Runtime) ──────────────────────────────────────────
 ML_AVAILABLE = False
 ml_predict_fn = None
+onnx_sessions = {}
 
 try:
-    import torch
-    WHEELYZE_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'Wheelyze-Tyre-Health-Detection')
-    if os.path.exists(WHEELYZE_DIR):
-        sys.path.insert(0, WHEELYZE_DIR)
-        _old_cwd = os.getcwd()
-        os.chdir(WHEELYZE_DIR)
-        try:
-            from final_combine import predict_tyre_custom_ensemble
-            ml_predict_fn = predict_tyre_custom_ensemble
+    import onnxruntime as ort
+    MODELS_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'models')
+    
+    # Check if models exist
+    if os.path.exists(MODELS_DIR):
+        model_files = {
+            'binary': 'binary_model.onnx',
+            'defective': 'defective_model.onnx',
+            'good': 'good_model.onnx',
+            'resnet': 'resnet_model.onnx'
+        }
+        
+        all_loaded = True
+        for name, filename in model_files.items():
+            path = os.path.join(MODELS_DIR, filename)
+            if not os.path.exists(path):
+                print(f"[WARN] Missing ONNX model: {filename}")
+                all_loaded = False
+                break
+            
+            onnx_sessions[name] = ort.InferenceSession(path)
+            
+        if all_loaded:
             ML_AVAILABLE = True
-            print("[INFO] ML models loaded successfully from Wheelyze")
-        except Exception as e:
-            print(f"[WARN] ML model load failed: {e}")
-        finally:
-            os.chdir(_old_cwd)
+            print("[INFO] ONNX ML models loaded successfully (Vercel-ready)")
+            
+            def preprocess_image_onnx(img_path):
+                img = Image.open(img_path).convert('RGB')
+                img = img.resize((300, 300), Image.BILINEAR)
+                img_data = np.array(img).astype(np.float32) / 255.0
+                
+                # Normalize using ImageNet mean and std
+                mean = np.array([0.485, 0.456, 0.406], dtype=np.float32)
+                std = np.array([0.229, 0.224, 0.225], dtype=np.float32)
+                img_data = (img_data - mean) / std
+                
+                # Transpose from (H, W, C) to (1, C, H, W)
+                img_data = np.transpose(img_data, (2, 0, 1))
+                img_data = np.expand_dims(img_data, axis=0)
+                return img_data
+
+            def predict_tyre_onnx(img_path):
+                input_data = preprocess_image_onnx(img_path)
+                
+                # Stage 1: Binary
+                input_name = onnx_sessions['binary'].get_inputs()[0].name
+                out_bin = onnx_sessions['binary'].run(None, {input_name: input_data})[0]
+                pred_bin = np.argmax(out_bin[0]) # 0=Defective, 1=Good
+                
+                # Stage 2: Grade
+                if pred_bin == 0:
+                    input_name = onnx_sessions['defective'].get_inputs()[0].name
+                    out_def = onnx_sessions['defective'].run(None, {input_name: input_data})[0]
+                    # Softmax not strictly needed for argmax, but kept for correctness
+                    eff_pred = np.argmax(out_def[0]) + 1
+                    valid_range = range(1, 6)
+                else:
+                    input_name = onnx_sessions['good'].get_inputs()[0].name
+                    out_good = onnx_sessions['good'].run(None, {input_name: input_data})[0]
+                    eff_pred = np.argmax(out_good[0]) + 6
+                    valid_range = range(6, 11)
+                    
+                # ResNet Full Prediction
+                input_name = onnx_sessions['resnet'].get_inputs()[0].name
+                out_res = onnx_sessions['resnet'].run(None, {input_name: input_data})[0]
+                res_pred = np.argmax(out_res[0]) + 1
+                
+                # Ensemble Logic
+                if res_pred in valid_range:
+                    avg = (eff_pred + res_pred) / 2.0
+                    if (avg - int(avg)) >= 0.5:
+                        ensemble_pred = int(avg) + 1
+                    else:
+                        ensemble_pred = int(avg)
+                    return str(ensemble_pred)
+                else:
+                    return f"{eff_pred}*"
+                    
+            ml_predict_fn = predict_tyre_onnx
+            
 except ImportError:
-    print("[WARN] PyTorch not installed — ML prediction disabled")
+    print("[WARN] onnxruntime not installed — ML prediction disabled")
 
 # ─── Flask Setup ─────────────────────────────────────────────────────────────
 app = Flask(__name__, static_folder='.')
@@ -504,13 +570,10 @@ def analyze_tire():
             with tempfile.NamedTemporaryFile(suffix='.jpg', delete=False) as tmp:
                 tmp_path = tmp.name
             img.save(tmp_path, 'JPEG')
-            _old_cwd = os.getcwd()
-            os.chdir(os.path.join(BASE_DIR, 'Wheelyze-Tyre-Health-Detection'))
+            
             try:
-                preds = ml_predict_fn(tmp_path)
-                ml_score = preds.get('Ensemble_prediction')
+                ml_score = ml_predict_fn(tmp_path)
             finally:
-                os.chdir(_old_cwd)
                 if os.path.exists(tmp_path):
                     os.remove(tmp_path)
             print(f"[ML] Ensemble prediction: {ml_score}")
