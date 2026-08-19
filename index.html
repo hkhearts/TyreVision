@@ -18,14 +18,15 @@
       --text-dark: #3e2723;
       --surface: #ffffff;
       */
-      
+
       /* New Palette */
       --primary: #186784;
       --secondary: #0C2E3D;
       --bg-light: #DAC6B6;
       --accent: #9A7C65;
       --text-dark: #000101;
-      --surface: #ffffff; /* Kept white for clean card backgrounds, or change to #C0A088 */
+      --surface: #ffffff;
+      /* Kept white for clean card backgrounds, or change to #C0A088 */
       --new-color-accent: #C0A088;
 
       --safe: #4CAF50;
@@ -64,7 +65,8 @@
       flex-direction: column;
       overflow-y: auto;
       padding: 1.5rem;
-      padding-bottom: 8rem; /* Added scrolling space at the bottom */
+      padding-bottom: 8rem;
+      /* Added scrolling space at the bottom */
       align-items: center;
     }
 
@@ -218,8 +220,10 @@
 
     #report-content {
       width: 100%;
-      max-width: 800px; /* Expanded max-width for PDF */
-      margin: 0 auto; /* Center align in page */
+      max-width: 800px;
+      /* Expanded max-width for PDF */
+      margin: 0 auto;
+      /* Center align in page */
       background: var(--surface);
     }
 
@@ -342,7 +346,7 @@
         <div class="label">Reliability</div>
       </div>
 
-      <h3 style="color: var(--primary); font-size: 1.1rem; margin-top: 1.5rem; text-align: center;">3D Digital Twin</h3>
+      <h3 style="color: var(--primary); font-size: 1.1rem; margin-top: 1.5rem; text-align: center;">3D Tyre Visual</h3>
       <p style="font-size: 0.8rem; opacity: 0.8; margin-bottom: 0.5rem; text-align: center;">Red markings indicate
         detected defects (cuts, uneven wear, low tread). Drag to rotate.</p>
       <div id="twin-container"></div>
